@@ -52,7 +52,7 @@ The codebase is quite modular.
 * **`baza_reguli_chroma.py`**
   The vector database manager. It ingests the rules from `baza_reguli.py`, converts them into semantic embeddings using ChromaDB, and performs similarity searches to inject the most relevant mathematical hints directly into the LLM's prompt context.
 
-###  Evaluation & Benchmarking (Ablation Study)
+###  Evaluation & Benchmarking 
 * **`evaluator_benchmarks.py`**
   The comprehensive evaluation script used for the ablation study. It automatically processes `.jsonl` datasets (like GSM8K and MATH500), runs both the local Neuro-Symbolic model and the baseline Cloud model side-by-side, compares their answers against the ground truth, and outputs detailed metrics into a CSV file.
 * **`evaluator_local_only.py`**
