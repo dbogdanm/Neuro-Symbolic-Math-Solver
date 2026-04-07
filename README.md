@@ -1,0 +1,2 @@
+# Neuro-Symbolic-Distributed-Reasoning-for-Mathematical-Problem-Solving
+This project introduces a hybrid distributed AI system that combines **(RAG)** with a **Neuro-Symbolic Pipeline (LLM + SymPy)**. It demonstrates how a smaller edge model (DeepSeek R1) can achieve state-of-the-art mathematical reasoning, matching or outperforming massive cloud-based LLMs while completely eliminating math hallucinations.
