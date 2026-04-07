@@ -1,5 +1,18 @@
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/release/python-3100/)
+<div align="center">
+
+![Status](https://img.shields.io/badge/Maintained%3F-yes-brightgreen.svg?style=flat-square)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+![Paper](https://img.shields.io/badge/Paper-KES_2026_In_Prep-blue.svg?style=flat-square)
+<br/>
+
+![Python](https://img.shields.io/badge/python-3670A0?style=for-the-badge&logo=python&logoColor=ffdd54)
+![SymPy](https://img.shields.io/badge/SymPy-Symbolic_Math-3B5526?style=for-the-badge&logo=python&logoColor=white)
+![ChromaDB](https://img.shields.io/badge/ChromaDB-Vector_Store-FF69B4?style=for-the-badge)
+![Ollama](https://img.shields.io/badge/Ollama-Edge_LLM-black?style=for-the-badge)
+![Gemini](https://img.shields.io/badge/Google_Gemini-Cloud_Baseline-4285F4?style=for-the-badge&logo=google&logoColor=white)
+![AI Strategy](https://img.shields.io/badge/Neuro--Symbolic-RAG-000000?style=for-the-badge)
+
+</div>
 
 This is my most complex project yet, it introduces a hybrid distributed AI system that combines **Retrieval-Augmented Generation (RAG)** with a **Neuro-Symbolic Pipeline (LLM + SymPy)**. It demonstrates how a smaller edge model (e.g., 8B parameters) can achieve state-of-the-art(SOTA) mathematical reasoning, matching or outperforming cloud-based LLMs such as Gemini 2.5 Flash while completely eliminating math hallucinations.
 
