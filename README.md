@@ -57,7 +57,7 @@ These results illustrate how the hybrid neuro-symbolic pipeline enables a lightw
 The first benchmark shows that the custom **DeepSeek 8B (NS)** agent, when armed with semantic RAG and the neuro-symbolic pipeline, demonstrates a substantial precision accuracy boost (95% vs. 80%) over the un-augmented, native DeepSeek 14B model. The single extraction failure(which reduced the score to 95% on the top 20 set) highlights a real-world edge-case that the neuro-symbolic approach can identify, but native LLMs merely hallucinate through. This chart is a definitive validation of logical orchestration over model size alone.
 
 <p align="center">
-  <img src="Chart1.png" width="700" alt="GSM8K Accuracy: Native 14B vs Augmented 8B">
+  <img src="Charts/Chart1.png" width="700" alt="GSM8K Accuracy: Native 14B vs Augmented 8B">
 </p>
 
 #### 2. MATH500 (Top 31 Problems)
@@ -65,7 +65,7 @@ The first benchmark shows that the custom **DeepSeek 8B (NS)** agent, when armed
 Moving to the competition-level **MATH500** dataset, the distributed **DeepSeek 8B (NS)** system is exceptionally competitive, achieving 90.3% precision against the cloud-based generalist Gemini 2.5 Flash. While Gemini holds a small edge on more diverse problem sets, this result proves that a local, specialized neuro-symbolic pipeline can achieve high-tier performance without massive hardware overhead or cloud API dependency.
 
 <p align="center">
-  <img src="Chart2.png" width="700" alt="MATH500 Precision: Augmented 8B vs Gemini 2.5 Flash">
+  <img src="Charts/Chart2.png" width="700" alt="MATH500 Precision: Augmented 8B vs Gemini 2.5 Flash">
 </p>
 
 #### 3. GSM8K (Top 21 Problems)
@@ -73,7 +73,7 @@ Moving to the competition-level **MATH500** dataset, the distributed **DeepSeek 
 The final, comprehensive evaluation reveals the synergistic power of the complete pipeline. On the top 21 problems, the **DeepSeek 8B (NS)** system achieves **perfect accuracy (100%)**, surpassing *both* the native DeepSeek 14B model (76.2%) and the powerful Gemini 2.5 Flash (95.2%). This confirms that a focused, edge-oriented combination of Edge-LLMs, RAG, and symbolic solvers is a superior approach for complex, high-precision mathematical reasoning.
 
 <p align="center">
-  <img src="Chart3.png" width="700" alt="GSM8K Precision: All models compared">
+  <img src="Charts/Chart3.png" width="700" alt="GSM8K Precision: All models compared">
 </p>
 
 
