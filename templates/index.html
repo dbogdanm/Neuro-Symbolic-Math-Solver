@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuro-Symbolic LLM Architecture</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="header">
+        <h1>Neuro-Symbolic LLM Architecture</h1>
+    </div>
+
+    <div class="main-container">
+        <!-- 8B Panel -->
+        <div class="panel" id="panel-8b">
+            <div class="panel-header">
+                <h2>Local 8B Model</h2>
+            </div>
+            <div class="chat-history" id="chat-history-8b">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="panel-input">
+                <input type="text" id="input-8b" placeholder="Ask 8B directly...">
+                <button onclick="askSingle('8b')">Send</button>
+            </div>
+        </div>
+
+        <!-- 14B Panel -->
+        <div class="panel" id="panel-14b">
+            <div class="panel-header">
+                <h2>Remote 14B Model</h2>
+            </div>
+            <div class="chat-history" id="chat-history-14b">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="panel-input">
+                <input type="text" id="input-14b" placeholder="Ask 14B directly...">
+                <button onclick="askSingle('14b')">Send</button>
+            </div>
+        </div>
+        
+        <!-- Neuro-Symbolic Panel -->
+        <div class="panel" id="panel-ns">
+            <div class="panel-header">
+                <h2>Neuro-Symbolic (SymPy)</h2>
+            </div>
+            <div class="chat-history" id="chat-history-ns">
+                <!-- Chat messages will appear here -->
+            </div>
+            <div class="panel-input">
+                <input type="text" id="input-ns" placeholder="Ask Neuro-Symbolic directly...">
+                <button onclick="askNeuroSymbolic()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Input Area -->
+    <div class="global-input-area">
+        <input type="text" id="input-global" placeholder="Ask all models simultaneously...">
+        <button onclick="askAll()">Send to All</button>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
