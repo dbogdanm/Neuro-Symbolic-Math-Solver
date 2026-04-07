@@ -48,6 +48,7 @@ To reproduce the experimental results presented down below use the evaluation sc
 
 The self-healing neuro-symbolic system was rigorously benchmarked on the **GSM8K** and **MATH500** datasets. The following charts provide a direct visual comparison of thelocal, resource-efficient system against both un-augmented DeepSeek 14B and the state-of-the-art, cloud-based Gemini 2.5 Flash baseline.
 
+## ABLATION STUDY AND AIME2024 TO BE ADDED 
 ### Key Performance Comparisons
 
 These results illustrate how the hybrid neuro-symbolic pipeline enables a lightweight 8B model to match or exceed the performance of models up to 10x its size, demonstrating the power of orchestrated logical control over raw scale for deterministic reasoning.
