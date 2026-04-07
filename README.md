@@ -60,7 +60,7 @@ The first benchmark shows that the custom **DeepSeek 8B (NS)** agent, when armed
   <img src="Chart1.png" width="700" alt="GSM8K Accuracy: Native 14B vs Augmented 8B">
 </p>
 
-#### 2. MATH500 (Top 31 Problems): Comprehensive 8B vs. SOTA Generalist
+#### 2. MATH500 (Top 31 Problems)
 
 Moving to the competition-level **MATH500** dataset, the distributed **DeepSeek 8B (NS)** system is exceptionally competitive, achieving 90.3% precision against the cloud-based generalist Gemini 2.5 Flash. While Gemini holds a small edge on more diverse problem sets, this result proves that a local, specialized neuro-symbolic pipeline can achieve high-tier performance without massive hardware overhead or cloud API dependency.
 
