@@ -68,7 +68,7 @@ Moving to the competition-level **MATH500** dataset, the distributed **DeepSeek 
   <img src="Chart2.png" width="700" alt="MATH500 Precision: Augmented 8B vs Gemini 2.5 Flash">
 </p>
 
-#### 3. Complete Ablation Study: GSM8K (Top 21 Problems)
+#### 3. GSM8K (Top 21 Problems)
 
 The final, comprehensive evaluation reveals the synergistic power of the complete pipeline. On the top 21 problems, the **DeepSeek 8B (NS)** system achieves **perfect accuracy (100%)**, surpassing *both* the native DeepSeek 14B model (76.2%) and the powerful Gemini 2.5 Flash (95.2%). This confirms that a focused, edge-oriented combination of Edge-LLMs, RAG, and symbolic solvers is a superior approach for complex, high-precision mathematical reasoning.
 
