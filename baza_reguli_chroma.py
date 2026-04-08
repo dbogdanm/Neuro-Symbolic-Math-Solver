@@ -2,7 +2,7 @@ import chromadb
 from baza_reguli import REGULI_MATEMATICE
 PRAG_DISTANTA = 1.2
 MAX_HINTS = 3
-print('⏳ Initializam Baza de Date Vectoriala ChromaDB...')
+print('Initializam Baza de Date Vectoriala ChromaDB....')
 _client = chromadb.Client()
 _colectie = _client.create_collection(name='reguli_matematice', metadata={'hnsw:space': 'cosine'})
 _colectie.add(ids=[r['id'] for r in REGULI_MATEMATICE], documents=[r['descriere'] for r in REGULI_MATEMATICE], metadatas=[{'hint': r['hint'], 'id': r['id']} for r in REGULI_MATEMATICE])
