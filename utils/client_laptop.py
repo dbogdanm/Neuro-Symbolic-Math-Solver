@@ -26,7 +26,7 @@ _TEMPLATE = (
 )
 
 MODEL_COLAB = 'deepseek-r1:14b'
-GEMINI_API_KEY = "AIzaSyAQIkd8PFldO80tly4gSC8Q8-NKlYXOpJU"   
+GEMINI_API_KEY = ""   
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 
