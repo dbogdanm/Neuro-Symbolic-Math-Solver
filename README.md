@@ -28,7 +28,6 @@ Developed in the context of a **KES 2026 submission**, the system explores hybri
 
 The platform is implemented using **Flask**, **Docker**, and **Ollama**, and features a purpose-built *Focus Mode* interface optimized for high-clarity mathematical interaction.
 
-![Math-OS Web UI](static/style.css) *(Placeholder for UI illustration)*
 
 ---
 
