@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+env/
+venv/
+.pytest_cache/
+.idea/
+.vscode/
+*.spec
+build/
+dist/
+node_modules/
+*.docx
+*.pdf
+*.xlsx
+*.csv
+*.jsonl
+# Keep the RAG database but maybe not the actual sqlite if it's too big, 
+# though for this project it's probably needed.
+# chroma_db_reguli/

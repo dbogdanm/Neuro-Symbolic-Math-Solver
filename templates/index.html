@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math-OS Web</title>
+    
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Marked.js for Markdown -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    
+    <!-- MathJax for Math Rendering -->
+    <script>
+      MathJax = {
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          displayMath: [['$$', '$$'], ['\\[', '\\]']],
+          processEscapes: true,
+          processEnvironments: true
+        },
+        options: {
+          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
+        }
+      };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2><i class="fa-solid fa-square-root-variable"></i> Math-OS</h2>
+                <button class="new-chat-btn" onclick="clearChat()">
+                    <i class="fa-solid fa-plus"></i> New Chat
+                </button>
+            </div>
+            <div class="sidebar-content">
+                <p class="sidebar-title">Today</p>
+                <div class="history-item active">Current Session</div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="user-profile">
+                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
+                    <span>Premium User</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="main-content">
+            <!-- Header with Model Selector -->
+            <header class="chat-header">
+                <div class="model-selector-container">
+                    <label for="model-select">Model:</label>
+                    <div class="custom-select">
+                        <select id="model-select">
+                            <option value="ns">Neuro-Symbolic Pipeline (SymPy + RAG)</option>
+                            <option value="web_rag">Web-RAG Mode (Live Search)</option>
+                            <option value="8b">Local 8B Model</option>
+                            <option value="14b">Remote 14B Model</option>
+                        </select>
+                        <i class="fa-solid fa-chevron-down"></i>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Chat Stream -->
+            <div class="chat-stream" id="chat-stream">
+                <div class="message bot intro-message">
+                    <div class="avatar-container">
+                        <div class="avatar bot-avatar"><i class="fa-solid fa-robot"></i></div>
+                    </div>
+                    <div class="message-content">
+                        <p>Welcome to Math-OS. I am a highly advanced neuro-symbolic solver. Choose your model above and ask me any mathematical question.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-area">
+                <div class="input-wrapper">
+                    <textarea id="prompt-input" placeholder="Message Math-OS..." rows="1"></textarea>
+                    <button id="send-btn" onclick="sendMessage()">
+                        <i class="fa-solid fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="input-footer">
+                    Math-OS can make mistakes. Consider verifying important formulas.
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
