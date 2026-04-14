@@ -1,82 +1,163 @@
-# Neuro-Symbolic Math Solver 
+<div align="center">
 
-A premium, web-based AI application that combines the creative reasoning of Large Language Models (LLMs) with the rigorous precision of Symbolic Mathematics (SymPy) and real-time Retrieval-Augmented Generation (RAG).
+# Neuro-Symbolic Math Solver
 
-Built with **Flask**, **Docker**, and **Ollama**, this solver features a "Focus Mode" UI designed for high-clarity mathematical exploration.
+![Status](https://img.shields.io/badge/Status-Research%20Prototype-blue?style=flat-square)
+![Conference](https://img.shields.io/badge/KES-2026-purple?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11-blue.svg?style=flat-square)
+![Framework](https://img.shields.io/badge/Backend-Flask-black?style=flat-square)
+![Math Engine](https://img.shields.io/badge/Engine-SymPy-green?style=flat-square)
+![LLM](https://img.shields.io/badge/LLM-Ollama-orange?style=flat-square)
+![Dockerized](https://img.shields.io/badge/Deployment-Docker-blue?style=flat-square)
 
-![Math-OS Web UI](static/style.css) *(Placeholder for UI description)*
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+![Repo Size](https://img.shields.io/github/repo-size/dbogdanm/Neuro-Symbolic-Math-Solver?style=flat-square)
+![Last Commit](https://img.shields.io/github/last-commit/dbogdanm/Neuro-Symbolic-Math-Solver?style=flat-square)
 
-##  Key Features
+<br/>
 
--   **Neuro-Symbolic Pipeline**: A multi-stage solver that:
-    1.  **Semantically Parses** the problem into variables and goals.
-    2.  **Generates Programs-of-Thought (PoT)** using LLMs.
-    3.  **Executes Code** in a secure, isolated Python environment using `SymPy`.
-    4.  **Validates** and extracts the final mathematical result.
--   **Web-RAG (Live Search)**: Bypasses model knowledge cutoffs by performing real-time web searches via DuckDuckGo to find latest formulas, constants, or context.
--   **Premium "Focus Mode" UI**: A sleek, dark-themed ChatGPT-style interface with:
-    -   **Live Pipeline Streaming**: Watch the AI "think" through logs, RAG retrieval, and code generation.
-    -   **LaTeX Rendering**: Beautiful mathematical formulas via MathJax.
-    -   **Collapsible Reasoning**: Expandable blocks for internal LLM thought processes.
--   **Dockerized Architecture**: Fully containerized for easy deployment, with a pre-configured `docker-compose` setup to connect to local Ollama instances.
+</div>
 
-## 🛠️ Technology Stack
+---
 
--   **Backend**: Flask (Python 3.11)
--   **Frontend**: Vanilla JS, CSS3 (Modern Glassmorphism), MathJax, Marked.js
--   **Math Engine**: SymPy (Symbolic Mathematics)
--   **LLM Integration**: Ollama (Supporting DeepSeek-R1, Llama 3, etc.)
--   **RAG Database**: ChromaDB (Vector store for mathematical rules)
--   **Search**: DuckDuckGo Search API
+## Overview
 
-##  Quick Start (Docker)
+**Neuro-Symbolic Math Solver** is a research-oriented, web-based artificial intelligence system that integrates the generative reasoning capabilities of Large Language Models (LLMs) with the formal rigor of symbolic mathematics via **SymPy**, augmented by real-time Retrieval-Augmented Generation (RAG).
 
-Ensure you have [Ollama](https://ollama.com/) installed and running on your host machine with the `deepseek-r1:8b` model pulled.
+Developed in the context of a **KES 2026 submission**, the system explores hybrid reasoning architectures for mathematically precise and explainable problem solving.
 
-1.  **Clone the Repository**:
-    ```bash
-    git clone https://github.com/dbogdanm/Neuro-Symbolic-Math-Solver.git
-    cd Neuro-Symbolic-Math-Solver
-    ```
+The platform is implemented using **Flask**, **Docker**, and **Ollama**, and features a purpose-built *Focus Mode* interface optimized for high-clarity mathematical interaction.
 
-2.  **Build and Run with Docker**:
-    ```bash
-    docker-compose up --build
-    ```
+![Math-OS Web UI](static/style.css) *(Placeholder for UI illustration)*
 
-3.  **Access the App**:
-    Open your browser and navigate to [http://localhost:5000](http://localhost:5000).
+---
 
-## 🔧 Manual Setup (No Docker)
+## Key Contributions
 
-1.  **Create a Virtual Environment**:
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate  # On Windows: .venv\Scripts\activate
-    ```
+- **Neuro-Symbolic Reasoning Pipeline**
+  1. **Semantic Parsing** – Extraction of variables, constraints, and objectives
+  2. **Program-of-Thought (PoT) Generation** – LLM-generated symbolic programs
+  3. **Deterministic Execution** – Secure evaluation using `SymPy`
+  4. **Validation & Result Extraction** – Ensuring mathematical correctness
 
-2.  **Install Dependencies**:
-    ```bash
-    pip install -r requirements.txt
-    ```
+- **Hybrid Retrieval-Augmented Generation (RAG)**
+  - Local knowledge via **ChromaDB**
+  - Live web search (DuckDuckGo) to mitigate knowledge cutoffs
 
-3.  **Run the Flask Server**:
-    ```bash
-    python app.py
-    ```
+- **Explainable AI Interface ("Focus Mode")**
+  - Real-time pipeline streaming
+  - LaTeX rendering via MathJax
+  - Expandable reasoning traces
 
-##  How the Neuro-Symbolic Pipeline Works
+- **Containerized Research Environment**
+  - Fully reproducible with Docker and `docker-compose`
 
-Math-OS doesn't just "guess" the answer. It follows a rigorous logical flow:
+---
 
-1.  **Retrieval**: The system searches the local `ChromaDB` ruleset and the Web for relevant mathematical hints.
-2.  **Semantic Parsing**: The LLM extracts the core logic (variables, constraints) into a structured JSON.
-3.  **PoT Generation**: The model writes a Python script using `SymPy` to solve the extracted logic.
-4.  **Execution & Extraction**: The script runs in a separate process. If it succeeds, the precise symbolic result is returned. If it fails, a "Direct Reasoning" fallback is triggered.
+## Technology Stack
 
-##  Requirements
+| Layer        | Technology |
+|--------------|-----------|
+| Backend      | Flask (Python 3.11) |
+| Frontend     | Vanilla JavaScript, CSS3 (Glassmorphism), MathJax, Marked.js |
+| Math Engine  | SymPy |
+| LLM Runtime  | Ollama (DeepSeek-R1, LLaMA 3, etc.) |
+| Vector Store | ChromaDB |
+| Web Retrieval| DuckDuckGo Search API |
 
--   **Docker & Docker Compose** (Recommended)
--   **Ollama** running on the host machine (`host.docker.internal:11434`)
--   Models: `deepseek-r1:8b` (default), or customize via `app.py` environment variables.
+---
 
+## Quick Start (Docker)
+
+Ensure [Ollama](https://ollama.com/) is installed and running locally with:
+
+```bash
+ollama pull deepseek-r1:8b
+```
+
+### 1. Clone the Repository
+
+```bash
+git clone https://github.com/dbogdanm/Neuro-Symbolic-Math-Solver.git
+cd Neuro-Symbolic-Math-Solver
+```
+
+### 2. Build and Launch
+
+```bash
+docker-compose up --build
+```
+
+### 3. Access the Application
+
+Open:
+
+```
+http://localhost:5000
+```
+
+---
+
+## Manual Setup (Without Docker)
+
+### 1. Create Virtual Environment
+
+```bash
+python -m venv .venv
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
+```
+
+### 2. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. Run Application
+
+```bash
+python app.py
+```
+
+---
+
+## Neuro-Symbolic Pipeline Architecture
+
+The system follows a deterministic and interpretable reasoning loop:
+
+1. **Retrieval Phase**
+   - Queries ChromaDB and external web sources
+
+2. **Semantic Structuring**
+   - Converts natural language into structured JSON
+
+3. **Symbolic Program Synthesis**
+   - Generates executable SymPy code via LLM reasoning
+
+4. **Execution & Verification**
+   - Runs in isolation and validates outputs
+   - Falls back to direct reasoning if needed
+
+---
+
+## Requirements
+
+- Docker & Docker Compose *(recommended)*
+- Ollama running locally (`host.docker.internal:11434`)
+- Models:
+  - `deepseek-r1:8b` (default)
+  - Configurable via environment variables
+
+---
+
+## Citation
+
+If you use this work in academic research, please cite the corresponding **KES 2026 paper** (details to be added upon publication).
+
+---
+
+## License
+
+This project is licensed under the MIT License.
+
+---
