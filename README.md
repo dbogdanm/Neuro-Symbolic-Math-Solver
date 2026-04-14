@@ -1,4 +1,4 @@
-# Neuro-Symbolic Math Solver (Math-OS) 🚀
+# Neuro-Symbolic Math Solver 
 
 A premium, web-based AI application that combines the creative reasoning of Large Language Models (LLMs) with the rigorous precision of Symbolic Mathematics (SymPy) and real-time Retrieval-Augmented Generation (RAG).
 
@@ -6,7 +6,7 @@ Built with **Flask**, **Docker**, and **Ollama**, this solver features a "Focus 
 
 ![Math-OS Web UI](static/style.css) *(Placeholder for UI description)*
 
-## 🌟 Key Features
+##  Key Features
 
 -   **Neuro-Symbolic Pipeline**: A multi-stage solver that:
     1.  **Semantically Parses** the problem into variables and goals.
@@ -29,7 +29,7 @@ Built with **Flask**, **Docker**, and **Ollama**, this solver features a "Focus 
 -   **RAG Database**: ChromaDB (Vector store for mathematical rules)
 -   **Search**: DuckDuckGo Search API
 
-## 🚀 Quick Start (Docker)
+##  Quick Start (Docker)
 
 Ensure you have [Ollama](https://ollama.com/) installed and running on your host machine with the `deepseek-r1:8b` model pulled.
 
@@ -65,7 +65,7 @@ Ensure you have [Ollama](https://ollama.com/) installed and running on your host
     python app.py
     ```
 
-## 🧠 How the Neuro-Symbolic Pipeline Works
+##  How the Neuro-Symbolic Pipeline Works
 
 Math-OS doesn't just "guess" the answer. It follows a rigorous logical flow:
 
@@ -74,15 +74,9 @@ Math-OS doesn't just "guess" the answer. It follows a rigorous logical flow:
 3.  **PoT Generation**: The model writes a Python script using `SymPy` to solve the extracted logic.
 4.  **Execution & Extraction**: The script runs in a separate process. If it succeeds, the precise symbolic result is returned. If it fails, a "Direct Reasoning" fallback is triggered.
 
-## 🛡️ Requirements
+##  Requirements
 
 -   **Docker & Docker Compose** (Recommended)
 -   **Ollama** running on the host machine (`host.docker.internal:11434`)
 -   Models: `deepseek-r1:8b` (default), or customize via `app.py` environment variables.
 
-## 📜 License
-
-This project is part of a Licensing Thesis. All rights reserved.
-
----
-Developed with ❤️ by [dbogdanm](https://github.com/dbogdanm)
