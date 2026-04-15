@@ -80,7 +80,7 @@ In my ablation studies evaluated on frontier mathematical benchmarks, wrapping e
 | **Backend** | Flask (Python 3.11) |
 | **Frontend** | Vanilla JavaScript, CSS3 (Glassmorphism), MathJax, Marked |
 | **Math Engine** | SymPy (Python Runtime) |
-| **LLM Runtime** | Ollama (DeepSeek-R1, LLaMA 3 8B Instruct, etc.) |
+| **LLM Runtime** | Ollama (DeepSeek-R1 or any LLM you like) |
 | **Vector Store** | ChromaDB |
 | **Web Retrieval** | DuckDuckGo Search API |
 
