@@ -22,7 +22,6 @@
 
 This is my most complex GitHub project yet, exploring hybrid reasoning architectures to completely eliminate computational hallucinations in edge-scale models. The performance metrics demonstrated in the charts below highlight the capabilities of the Release v1.0.0 architecture, where wrapping a compact 8B parameter model in this RAG and neuro-symbolic pipeline yielded massive performance surges, allowing it to compete with and even surpass much larger frontier models.
 
-### Release v1.0.0 Benchmark Performance
 
 -----
 
