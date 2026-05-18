@@ -25,11 +25,13 @@ This is my most complex GitHub project yet, exploring hybrid reasoning architect
 
 -----
 
-## Overview (Release v2.0.0)
+## Overview (Release v3.0.0)
 
 **Neuro-Symbolic Math Solver** is my research-oriented, web-based artificial intelligence system that integrates the generative reasoning capabilities of Large Language Models (LLMs) with the formal rigor of symbolic mathematics via **SymPy**, augmented by real-time Retrieval-Augmented Generation (RAG).
 
 Developed in the context of my **KES 2026 submission**, the system explores hybrid reasoning architectures to offload rigid arithmetic tasks to a deterministic engine and inject missing parametric knowledge via RAG. This framework empowers compact models (e.g., 8B parameters) to achieve competition-level mathematical deductive capabilities.
+
+**Version 3.0.0 Update:** The architecture has been overhauled for significant latency reduction and accuracy improvements. The RAG retrieval and Semantic Parsing now run in parallel (cutting initial latency by up to 50%), and the execution layer features an active **Self-Correction Loop** that catches SymPy execution errors and prompts the LLM to fix its own code.
 
 The platform is implemented using **Flask**, **Docker**, and **Ollama**, featuring a purpose-built *Focus Mode* interface optimized for high-clarity mathematical interaction and explainability.
 
@@ -40,6 +42,8 @@ The platform is implemented using **Flask**, **Docker**, and **Ollama**, featuri
 In my ablation studies evaluated on frontier mathematical benchmarks, wrapping edge-scale models in this neuro-symbolic pipeline yielded significant performance improvements compared to raw baseline executions:
 
 <div align="center">
+  <img src="Charts/Chart_v3_vs_v2_SVAMP.png" alt="SVAMP Dataset Benchmark: v3.0.0 vs v2.0.0" width="85%" />
+  <br><br>
   <img src="Charts/Chart1.png" alt="Accuracy Comparison on Top 20 GSM8K Dataset" width="85%" />
   <br><br>
   <img src="Charts/Chart2.png" alt="Precision Accuracy Comparison: MATH500 Top 31 Problems" width="85%" />
@@ -48,6 +52,7 @@ In my ablation studies evaluated on frontier mathematical benchmarks, wrapping e
 </div>
 <br/>
 
+* **SVAMP Dataset (v3.0.0 Benchmark):** The new parallelized architecture with self-correction achieved an **87.5% accuracy** on sample problem sets while drastically reducing execution latency to an average of **~18s per problem**.
 * **AIME 2025 Dataset:** Reached **66.6% accuracy** (20 problems solved out of 30) using an 8B model (compared to a 0% baseline without RAG and symbolic execution).
 * **MATH 500 Dataset:** Achieved **93.0% accuracy** on the first 100 problems of this dataset, demonstrating extreme robustness in complex theorem application.
 * **Zero Arithmetic Hallucinations:** The execution layer securely handles all mathematical operations, completely eliminating LLM calculation errors.
