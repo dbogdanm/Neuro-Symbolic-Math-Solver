@@ -3,6 +3,7 @@ import json
 import re
 import hashlib
 import multiprocessing
+import concurrent.futures
 import queue
 import sympy as sp
 from typing import Callable, Optional
@@ -219,28 +220,58 @@ def run_neuro_symbolic_pipeline(problem: str, model: str, hint: str = "", ui_cal
             _log(f"  [NS] Solved via Fast Path: {result}", ui_callback)
             return result
 
-    if not hint:
-        _log("  [NS] Stage 0: Retrieval (RAG + Web)...", ui_callback)
-        hint = get_rag_hint(problem, model=model, ui_callback=ui_callback)
-
-    try:
-        parsed_structure = step1_semantic_parser(problem, model=model, ui_callback=ui_callback)
-        raw_pot = step2_pot_generator(parsed_structure, model=model, hint=hint, ui_callback=ui_callback)
-        python_code = step3_code_validator(raw_pot, ui_callback=ui_callback)
-        final_result = execute_code_with_timeout(python_code)
+    # Stage 0 and 1: Parallel Execution (Latency Improvement)
+    parsed_structure = ""
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+        future_hint = executor.submit(get_rag_hint, problem, model, ui_callback) if not hint else None
+        future_parse = executor.submit(step1_semantic_parser, problem, model, ui_callback)
         
-        if final_result is None:
-            raise ValueError("Execution returned None.")
+        if not hint:
+            _log("  [NS] Stage 0: Retrieval (RAG + Web) running in parallel with Stage 1 (Parsing)...", ui_callback)
+            hint = future_hint.result()
             
-        _log(f"  [NS] Pipeline finished successfully: {final_result}", ui_callback)
-        return str(final_result)
-    except Exception as e:
-        _log(f"  [NS] Pipeline failed: {e}. Retrying with direct reasoning...", ui_callback)
-        # Fallback to direct reasoning if PoT fails
-        prompt = f"Solve this math problem. Show final answer in \\boxed{{}}:\n{problem}\nHint: {hint}"
-        final_attempt = call_llm(prompt, model=model, num_ctx=8192, ui_callback=ui_callback)
-        match = re.search(r'\\boxed\{(.*?)\}', final_attempt)
-        return match.group(1) if match else "Extraction Failed"
+        parsed_structure = future_parse.result()
+
+    # Stage 2 and 3: Self-Correction Loop (Accuracy Improvement)
+    max_retries = 3
+    last_error = ""
+    raw_pot = ""
+    
+    for attempt in range(1, max_retries + 1):
+        try:
+            if attempt == 1:
+                raw_pot = step2_pot_generator(parsed_structure, model=model, hint=hint, ui_callback=ui_callback)
+            else:
+                _log(f"  [NS] Stage 2: Self-Correction Attempt {attempt}/{max_retries}...", ui_callback)
+                # Pass the error back to the LLM to fix it
+                error_prompt = (
+                    "Your previous Python SymPy code failed with the following error:\n"
+                    f"{last_error}\n\n"
+                    "Please analyze the error and provide a CORRECTED Python SymPy code block.\n"
+                    "Remember, the code MUST contain exactly: final_result = <value>\n"
+                    "Do NOT repeat the same mistake. Output ONLY the fixed python code block."
+                )
+                raw_pot = call_llm(error_prompt + "\n\nOriginal Code:\n" + raw_pot, model=model, num_ctx=8192, ui_callback=ui_callback)
+
+            python_code = step3_code_validator(raw_pot, ui_callback=ui_callback)
+            final_result = execute_code_with_timeout(python_code)
+            
+            if final_result is None:
+                raise ValueError("Execution returned None.")
+                
+            _log(f"  [NS] Pipeline finished successfully: {final_result}", ui_callback)
+            return str(final_result)
+            
+        except Exception as e:
+            last_error = str(e)
+            _log(f"  [NS] Execution failed (Attempt {attempt}): {last_error}", ui_callback)
+
+    # Fallback to direct reasoning if all PoT attempts fail
+    _log(f"  [NS] All PoT attempts failed. Retrying with direct reasoning...", ui_callback)
+    prompt = f"Solve this math problem. Show final answer in \\boxed{{}}:\n{problem}\nHint: {hint}"
+    final_attempt = call_llm(prompt, model=model, num_ctx=8192, ui_callback=ui_callback)
+    match = re.search(r'\\boxed\{(.*?)\}', final_attempt)
+    return match.group(1) if match else "Extraction Failed"
 
 if __name__ == "__main__":
     print(run_neuro_symbolic_pipeline("$\",(2,", "deepseek-r1:8b"))

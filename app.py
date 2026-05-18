@@ -3,10 +3,11 @@ import requests
 import json
 import logging
 import time
+import os
+import threading
+import queue
 from neuro_symbolic import run_neuro_symbolic_pipeline
 from web_search import get_web_hint
-
-import os
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -131,9 +132,6 @@ def neuro_symbolic_endpoint():
                 yield f"data: {json.dumps({'step': msg})}\n\n"
 
     return Response(stream_with_context(generate_ns()), content_type="text/event-stream")
-
-import threading
-import queue
 
 def generate_stream(url, payload, headers=None):
     import time
