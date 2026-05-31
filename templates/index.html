@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Math-OS Web</title>
-    
-    <!-- Fonts -->
+    <title>Math-OS · Neuro-Symbolic Solver</title>
+
+    <!-- Fonts: elegant serif wordmark + refined grotesque UI + mono for code/pipeline -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
-    
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
     <!-- Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    
-    <!-- Marked.js for Markdown -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <!-- Markdown -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    
-    <!-- MathJax for Math Rendering -->
+
+    <!-- MathJax -->
     <script>
       MathJax = {
         tex: {
@@ -26,81 +25,263 @@
           processEscapes: true,
           processEnvironments: true
         },
-        options: {
-          skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre']
-        }
+        options: { skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre'] }
       };
     </script>
     <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    
+
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <h2><i class="fa-solid fa-square-root-variable"></i> Math-OS</h2>
-                <button class="new-chat-btn" onclick="clearChat()">
-                    <i class="fa-solid fa-plus"></i> New Chat
+    <!-- Animated aurora atmosphere -->
+    <div class="aurora" aria-hidden="true">
+        <span class="blob blob-1"></span>
+        <span class="blob blob-2"></span>
+        <span class="blob blob-3"></span>
+        <span class="blob blob-4"></span>
+        <div class="grain"></div>
+    </div>
+
+    <div class="app-shell">
+        <!-- ───────────────────────── Sidebar ───────────────────────── -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <div class="brand-mark"><i class="fa-solid fa-square-root-variable"></i></div>
+                <div class="brand-text">
+                    <span class="brand-name">Math&#8202;<em>OS</em></span>
+                    <span class="brand-sub">neuro-symbolic</span>
+                </div>
+            </div>
+
+            <button class="btn-new" onclick="MathOS.clearChat()">
+                <i class="fa-solid fa-plus"></i> New session
+            </button>
+
+            <div class="side-section">
+                <p class="side-label">Engine modes</p>
+                <button class="mode-pill" data-mode="ns" onclick="MathOS.setMode('ns')">
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span><strong>Neuro-Symbolic</strong><small>SymPy + RAG pipeline</small></span>
+                </button>
+                <button class="mode-pill" data-mode="web_rag" onclick="MathOS.setMode('web_rag')">
+                    <i class="fa-solid fa-globe"></i>
+                    <span><strong>Web Search</strong><small>live grounded answers</small></span>
+                </button>
+                <button class="mode-pill" data-mode="generate" onclick="MathOS.setMode('generate')">
+                    <i class="fa-solid fa-comment-dots"></i>
+                    <span><strong>Direct Chat</strong><small>raw model reasoning</small></span>
                 </button>
             </div>
-            <div class="sidebar-content">
-                <p class="sidebar-title">Today</p>
-                <div class="history-item active">Current Session</div>
+
+            <div class="side-section history" id="history-section">
+                <p class="side-label">This session</p>
+                <div class="history-item active">Current conversation</div>
             </div>
+
             <div class="sidebar-footer">
-                <div class="user-profile">
-                    <div class="avatar"><i class="fa-solid fa-user"></i></div>
-                    <span>Premium User</span>
-                </div>
+                <button class="provider-pill" id="provider-pill" onclick="MathOS.openSettings()">
+                    <span class="dot" id="provider-dot"></span>
+                    <span class="provider-text">
+                        <strong id="provider-name">Ollama</strong>
+                        <small id="provider-model">deepseek-r1:8b</small>
+                    </span>
+                    <i class="fa-solid fa-gear"></i>
+                </button>
             </div>
         </aside>
 
-        <!-- Main Chat Area -->
-        <main class="main-content">
-            <!-- Header with Model Selector -->
-            <header class="chat-header">
-                <div class="model-selector-container">
-                    <label for="model-select">Model:</label>
-                    <div class="custom-select">
-                        <select id="model-select">
-                            <option value="ns">Neuro-Symbolic Pipeline (SymPy + RAG)</option>
-                            <option value="web_rag">Web-RAG Mode (Live Search)</option>
-                            <option value="8b">Local 8B Model</option>
-                            <option value="14b">Remote 14B Model</option>
-                        </select>
-                        <i class="fa-solid fa-chevron-down"></i>
-                    </div>
+        <!-- ───────────────────────── Main ───────────────────────── -->
+        <main class="main">
+            <header class="topbar">
+                <button class="icon-btn mobile-only" onclick="MathOS.toggleSidebar()" aria-label="Menu">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div class="seg" id="mode-seg">
+                    <button class="seg-btn" data-mode="ns" onclick="MathOS.setMode('ns')">Neuro-Symbolic</button>
+                    <button class="seg-btn" data-mode="web_rag" onclick="MathOS.setMode('web_rag')">Web</button>
+                    <button class="seg-btn" data-mode="generate" onclick="MathOS.setMode('generate')">Direct</button>
+                    <span class="seg-glow" id="seg-glow"></span>
                 </div>
+                <button class="icon-btn" onclick="MathOS.openSettings()" aria-label="Settings">
+                    <i class="fa-solid fa-sliders"></i>
+                </button>
             </header>
 
-            <!-- Chat Stream -->
-            <div class="chat-stream" id="chat-stream">
-                <div class="message bot intro-message">
-                    <div class="avatar-container">
-                        <div class="avatar bot-avatar"><i class="fa-solid fa-robot"></i></div>
-                    </div>
-                    <div class="message-content">
-                        <p>Welcome to Math-OS. I am a highly advanced neuro-symbolic solver. Choose your model above and ask me any mathematical question.</p>
+            <div class="chat" id="chat-stream">
+                <!-- Empty-state hero -->
+                <div class="hero" id="hero">
+                    <div class="hero-glyph"><i class="fa-solid fa-infinity"></i></div>
+                    <h1 class="hero-title">Solve anything,<br><em>symbolically.</em></h1>
+                    <p class="hero-sub">
+                        A hybrid engine that hands rigid arithmetic to a deterministic SymPy core
+                        and lets the model reason — zero calculation hallucinations.
+                    </p>
+                    <div class="chips" id="example-chips">
+                        <button class="chip" onclick="MathOS.useExample(this)">Find the smallest positive perfect cube that is a sum of three consecutive integers.</button>
+                        <button class="chip" onclick="MathOS.useExample(this)">How many ordered pairs of integers $(x,y)$ in $[-100,100]$ satisfy $12x^2 - xy - 6y^2 = 0$?</button>
+                        <button class="chip" onclick="MathOS.useExample(this)">Solve $\sqrt{11 - 2x} = x - 4$.</button>
+                        <button class="chip" onclick="MathOS.useExample(this)">Sum of all positive integers $n$ such that $n+2$ divides $3(n+3)(n^2+9)$.</button>
                     </div>
                 </div>
             </div>
 
-            <!-- Input Area -->
-            <div class="input-area">
-                <div class="input-wrapper">
-                    <textarea id="prompt-input" placeholder="Message Math-OS..." rows="1"></textarea>
-                    <button id="send-btn" onclick="sendMessage()">
-                        <i class="fa-solid fa-paper-plane"></i>
+            <div class="composer">
+                <div class="composer-inner" id="composer">
+                    <textarea id="prompt-input" placeholder="Ask a mathematical question…  (Shift+Enter for newline)" rows="1"></textarea>
+                    <button id="send-btn" onclick="MathOS.send()" aria-label="Send">
+                        <i class="fa-solid fa-arrow-up"></i>
                     </button>
                 </div>
-                <div class="input-footer">
-                    Math-OS can make mistakes. Consider verifying important formulas.
-                </div>
+                <p class="composer-foot">
+                    <i class="fa-solid fa-shield-halved"></i>
+                    Bring your own key — it stays in your browser. Math-OS can still make mistakes; verify important results.
+                </p>
             </div>
         </main>
     </div>
+
+    <!-- ───────────────────────── Settings modal ───────────────────────── -->
+    <div class="modal-backdrop" id="settings-modal" aria-hidden="true">
+        <div class="modal" role="dialog" aria-modal="true" aria-label="Settings">
+            <div class="modal-head">
+                <h2><i class="fa-solid fa-key"></i> Bring Your Own Key</h2>
+                <button class="icon-btn" onclick="MathOS.closeSettings()" aria-label="Close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <p class="modal-note">
+                <i class="fa-solid fa-lock"></i>
+                Keys live only in this browser's <code>localStorage</code> and are sent straight to the
+                provider per request. They are never stored on the server.
+            </p>
+
+            <div class="field">
+                <label>Provider</label>
+                <div class="provider-toggle" id="provider-toggle">
+                    <button class="pt-btn" data-provider="ollama" onclick="MathOS.selectProvider('ollama')">
+                        <i class="fa-solid fa-microchip"></i> Ollama
+                        <small>local · free</small>
+                    </button>
+                    <button class="pt-btn" data-provider="gemini" onclick="MathOS.selectProvider('gemini')">
+                        <i class="fa-brands fa-google"></i> Gemini
+                        <small>your key · AI Studio</small>
+                    </button>
+                    <button class="pt-btn" data-provider="openrouter" onclick="MathOS.selectProvider('openrouter')">
+                        <i class="fa-solid fa-bolt"></i> OpenRouter
+                        <small>your key · 300+ models</small>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Gemini fields -->
+            <div class="provider-fields" id="fields-gemini">
+                <div class="field">
+                    <label for="ge-key">Google AI Studio API key</label>
+                    <div class="key-input">
+                        <input type="password" id="ge-key" placeholder="AIzaSy..." autocomplete="off" spellcheck="false">
+                        <button class="icon-btn ghost" onclick="MathOS.toggleKeyVisibility('ge-key', 'ge-key-eye')" aria-label="Show/Hide">
+                            <i class="fa-solid fa-eye" id="ge-key-eye"></i>
+                        </button>
+                    </div>
+                    <a class="field-hint" href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">
+                        Get a free key at aistudio.google.com <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="field">
+                    <label for="ge-model">Model</label>
+                    <input type="text" id="ge-model" placeholder="gemini-2.5-flash" spellcheck="false">
+                    <span class="field-hint">Popular: gemini-2.5-flash, gemini-2.5-pro, gemini-2.0-flash-thinking-exp-01-21</span>
+                </div>
+            </div>
+
+            <!-- OpenAI fields -->
+            <div class="provider-fields" id="fields-openai">
+                <div class="field">
+                    <label for="oa-key">OpenAI API key</label>
+                    <div class="key-input">
+                        <input type="password" id="oa-key" placeholder="sk-proj-..." autocomplete="off" spellcheck="false">
+                        <button class="icon-btn ghost" onclick="MathOS.toggleKeyVisibility('oa-key', 'oa-key-eye')" aria-label="Show/Hide">
+                            <i class="fa-solid fa-eye" id="oa-key-eye"></i>
+                        </button>
+                    </div>
+                    <a class="field-hint" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">
+                        Get a key at platform.openai.com <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="field">
+                    <label for="oa-model">Model</label>
+                    <input type="text" id="oa-model" placeholder="gpt-4o-mini" spellcheck="false">
+                    <span class="field-hint">Popular: gpt-4o, gpt-4o-mini, o1-mini</span>
+                </div>
+            </div>
+
+            <!-- Anthropic fields -->
+            <div class="provider-fields" id="fields-anthropic">
+                <div class="field">
+                    <label for="an-key">Anthropic API key</label>
+                    <div class="key-input">
+                        <input type="password" id="an-key" placeholder="sk-ant-..." autocomplete="off" spellcheck="false">
+                        <button class="icon-btn ghost" onclick="MathOS.toggleKeyVisibility('an-key', 'an-key-eye')" aria-label="Show/Hide">
+                            <i class="fa-solid fa-eye" id="an-key-eye"></i>
+                        </button>
+                    </div>
+                    <a class="field-hint" href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">
+                        Get a key at console.anthropic.com <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="field">
+                    <label for="an-model">Model</label>
+                    <input type="text" id="an-model" placeholder="claude-3-5-sonnet-20241022" spellcheck="false">
+                    <span class="field-hint">Popular: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022</span>
+                </div>
+            </div>
+
+            <!-- OpenRouter fields -->
+            <div class="provider-fields" id="fields-openrouter">
+                <div class="field">
+                    <label for="or-key">OpenRouter API key</label>
+                    <div class="key-input">
+                        <input type="password" id="or-key" placeholder="sk-or-v1-…" autocomplete="off" spellcheck="false">
+                        <button class="icon-btn ghost" onclick="MathOS.toggleKeyVisibility('or-key', 'key-eye')" aria-label="Show/Hide">
+                            <i class="fa-solid fa-eye" id="key-eye"></i>
+                        </button>
+                    </div>
+                    <a class="field-hint" href="https://openrouter.ai/keys" target="_blank" rel="noopener">
+                        Get a free key at openrouter.ai/keys <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                    </a>
+                </div>
+                <div class="field">
+                    <label for="or-model">Model</label>
+                    <input type="text" id="or-model" list="or-models" placeholder="deepseek/deepseek-r1" spellcheck="false">
+                    <datalist id="or-models"></datalist>
+                    <span class="field-hint" id="models-hint">Popular: deepseek/deepseek-r1 · openai/gpt-4o-mini · anthropic/claude-3.5-sonnet</span>
+                </div>
+            </div>
+
+            <!-- Ollama fields -->
+            <div class="provider-fields" id="fields-ollama">
+                <div class="field">
+                    <label for="ol-base">Ollama base URL</label>
+                    <input type="text" id="ol-base" placeholder="http://localhost:11434" spellcheck="false">
+                </div>
+                <div class="field">
+                    <label for="ol-model">Model</label>
+                    <input type="text" id="ol-model" placeholder="deepseek-r1:8b" spellcheck="false">
+                    <span class="field-hint">Pull first, e.g. <code>ollama pull deepseek-r1:8b</code></span>
+                </div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn-ghost" onclick="MathOS.clearKey()">Clear key</button>
+                <button class="btn-primary" onclick="MathOS.saveSettings()">
+                    <i class="fa-solid fa-check"></i> Save
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast-wrap" id="toast-wrap"></div>
 
     <script src="{{ url_for('static', filename='script.js') }}"></script>
 </body>

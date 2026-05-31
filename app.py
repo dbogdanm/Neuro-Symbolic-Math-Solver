@@ -1,201 +1,208 @@
-from flask import Flask, render_template, request, Response, stream_with_context, jsonify
-import requests
+"""Flask app for the Neuro-Symbolic Math-OS.
+
+Bring Your Own API Key (BYOK): every request carries the provider / model /
+key chosen in the browser. Nothing is stored server-side. The two supported
+providers are a local Ollama server (free, no key) and OpenRouter (the user's
+own key, 300+ models).
+"""
+
 import json
 import logging
-import time
 import os
-import threading
 import queue
+import threading
+import time
+
+from flask import Flask, Response, render_template, request, stream_with_context
+import requests
+
+import llm as llm_layer
+from llm import LLMConfig, LLMError
 from neuro_symbolic import run_neuro_symbolic_pipeline
 from web_search import get_web_hint
 
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
+DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"
+PORT = int(os.environ.get("PORT", "5000"))
 
-DOCKER_DEFAULT_HOST = "host.docker.internal" if os.path.exists("/.dockerenv") else "localhost"
 
-MODEL_8B = os.environ.get("MODEL_8B", "deepseek-r1:8b")
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_URL", f"http://{DOCKER_DEFAULT_HOST}:11434")
-OLLAMA_URL = f"{OLLAMA_BASE_URL}/api/generate"
-URL_PC = os.environ.get("URL_PC", f"http://{DOCKER_DEFAULT_HOST}:11434/api/generate")
+def _sse(payload: dict) -> str:
+    """Format a dict as a Server-Sent Events frame."""
+    return f"data: {json.dumps(payload)}\n\n"
 
-HEADERS_COLAB = {"Bypass-Tunnel-Reminder": "true"}
+
+# --------------------------------------------------------------------------- #
+# Pages & meta
+# --------------------------------------------------------------------------- #
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-@app.route("/api/web_rag", methods=["POST"])
-def web_rag_endpoint():
-    data = request.get_json()
-    prompt = data.get("prompt", "")
 
+@app.route("/api/health")
+def health():
+    return {
+        "status": "ok",
+        "default_ollama": llm_layer.DEFAULT_OLLAMA_BASE,
+        "default_ollama_model": llm_layer.DEFAULT_OLLAMA_MODEL,
+        "default_openrouter_model": llm_layer.DEFAULT_OPENROUTER_MODEL,
+        "has_server_key": bool(llm_layer.ENV_OPENROUTER_KEY),
+    }
+
+
+@app.route("/api/openrouter/models")
+def openrouter_models():
+    """Proxy OpenRouter's public model catalogue (no key required).
+
+    Returns a trimmed list for the settings model picker. Degrades gracefully
+    to an empty list so the UI can fall back to its built-in suggestions.
+    """
+    try:
+        resp = requests.get(f"{llm_layer.OPENROUTER_BASE}/models", timeout=10)
+        resp.raise_for_status()
+        models = []
+        for m in resp.json().get("data", []):
+            pricing = m.get("pricing", {}) or {}
+            is_free = str(pricing.get("prompt", "0")) in ("0", "0.0", "0.00")
+            models.append({
+                "id": m.get("id"),
+                "name": m.get("name", m.get("id")),
+                "context": m.get("context_length"),
+                "free": is_free,
+            })
+        models.sort(key=lambda x: (not x["free"], x["id"] or ""))
+        return {"models": models}
+    except Exception as exc:  # noqa: BLE001
+        app.logger.warning("OpenRouter models fetch failed: %s", exc)
+        return {"models": [], "error": str(exc)}
+
+
+# --------------------------------------------------------------------------- #
+# Direct chat (any provider/model)
+# --------------------------------------------------------------------------- #
+
+@app.route("/api/generate", methods=["POST"])
+def generate():
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
     if not prompt:
         return {"error": "Prompt is required"}, 400
 
-    def generate_web_rag():
-        yield f"data: {json.dumps({'step': 'LOG: Initiating Web Search...'})}\n\n"
+    cfg = LLMConfig.from_request(data)
+
+    def gen():
+        start = time.time()
+        try:
+            for token in llm_layer.stream(cfg, prompt, temperature=0.6, num_ctx=16384):
+                if token:
+                    yield _sse({"text": token})
+            yield _sse({"done": True, "time": round(time.time() - start, 2)})
+        except LLMError as exc:
+            yield _sse({"error": str(exc), "done": True})
+        except Exception as exc:  # noqa: BLE001
+            app.logger.error("generate error: %s", exc)
+            yield _sse({"error": str(exc), "done": True})
+
+    return Response(stream_with_context(gen()), content_type="text/event-stream")
+
+
+# --------------------------------------------------------------------------- #
+# Web-RAG mode (live search + grounded generation)
+# --------------------------------------------------------------------------- #
+
+@app.route("/api/web_rag", methods=["POST"])
+def web_rag_endpoint():
+    data = request.get_json(silent=True) or {}
+    prompt = data.get("prompt", "")
+    if not prompt:
+        return {"error": "Prompt is required"}, 400
+
+    cfg = LLMConfig.from_request(data)
+
+    def gen():
+        start = time.time()
+        yield _sse({"step": "LOG: Initiating Web Search..."})
         context = get_web_hint(prompt)
-        
         if context:
-            yield f"data: {json.dumps({'step': 'LOG: Web context retrieved.'})}\n\n"
-            yield f"data: {json.dumps({'step': 'PROMPT: ' + context})}\n\n"
+            yield _sse({"step": "LOG: Web context retrieved."})
+            yield _sse({"step": "PROMPT: " + context})
         else:
-            yield f"data: {json.dumps({'step': 'LOG: No web context found. Relying on base knowledge with current time context.'})}\n\n"
+            yield _sse({"step": "LOG: No web context found. Relying on base knowledge."})
 
         current_date = time.strftime("%A, %B %d, %Y")
-        
-        # Super-strict grounding instruction to bypass model's internal cutoff refusal
         augmented_prompt = (
-            f"<SYSTEM_OVERRIDE>\n"
-            f"ACTUAL_CURRENT_DATE: {current_date}\n"
-            f"LIVE_SEARCH_DATA_FROM_2026:\n{context if context else 'STRICT WARNING: NO LIVE DATA RETURNED FROM SEARCH ENGINE.'}\n\n"
-            "MANDATORY PROTOCOLS:\n"
-            "- YOU ARE OPERATING IN REAL-TIME. Your knowledge is NO LONGER limited to your 2023/2024 training cutoff.\n"
-            "- THE DATE ABOVE ({current_date}) IS THE ABSOLUTE TRUTH. If your internal memory says it's 2023, YOU ARE WRONG.\n"
-            "- THE LIVE_SEARCH_DATA IS CURRENT AND ACCURATE FOR 2026. Use it to answer the question below.\n"
-            "- DO NOT apologize for your 'knowledge cutoff'. DO NOT state you cannot predict the future.\n"
-            "- If the search data is available, answer definitively based on it.\n"
-            "- If no data is available, admit you cannot find the *2026* status for this query and provide the last known state from 2024 as a historical reference only.\n"
-            "</SYSTEM_OVERRIDE>\n\n"
+            "<SYSTEM_CONTEXT>\n"
+            f"CURRENT_DATE: {current_date}\n"
+            "LIVE_SEARCH_DATA:\n"
+            f"{context if context else 'No live data returned from the search engine.'}\n\n"
+            "INSTRUCTIONS:\n"
+            f"- Treat {current_date} as today's date and the live data above as current and accurate.\n"
+            "- Do not refuse based on a training cutoff; use the provided data to answer.\n"
+            "- If the data is insufficient, say so and give the last known state as historical context.\n"
+            "</SYSTEM_CONTEXT>\n\n"
             f"USER_REQUEST: {prompt}"
         )
-        
-        payload = {
-            "model": MODEL_8B,
-            "prompt": augmented_prompt,
-            "stream": True,
-            "options": {"temperature": 0.3, "num_ctx": 16384}
-        }
-        
-        start_time = time.time()
-        try:
-            with requests.post(OLLAMA_URL, json=payload, stream=True, timeout=400) as resp:
-                resp.raise_for_status()
-                full_text = ""
-                for line in resp.iter_lines():
-                    if line:
-                        chunk_str = line.decode('utf-8')
-                        try:
-                            chunk = json.loads(chunk_str)
-                            token = chunk.get("response", "")
-                            if token:
-                                full_text += token
-                                yield f"data: {json.dumps({'text': token})}\n\n"
-                            if chunk.get("done"):
-                                duration = round(time.time() - start_time, 2)
-                                yield f"data: {json.dumps({'done': True, 'time': duration})}\n\n"
-                                break
-                        except json.JSONDecodeError:
-                            continue
-        except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
-    return Response(stream_with_context(generate_web_rag()), content_type="text/event-stream")
+        try:
+            for token in llm_layer.stream(cfg, augmented_prompt, temperature=0.3, num_ctx=16384):
+                if token:
+                    yield _sse({"text": token})
+            yield _sse({"done": True, "time": round(time.time() - start, 2)})
+        except LLMError as exc:
+            yield _sse({"error": str(exc), "done": True})
+        except Exception as exc:  # noqa: BLE001
+            app.logger.error("web_rag error: %s", exc)
+            yield _sse({"error": str(exc), "done": True})
+
+    return Response(stream_with_context(gen()), content_type="text/event-stream")
+
+
+# --------------------------------------------------------------------------- #
+# Neuro-symbolic pipeline
+# --------------------------------------------------------------------------- #
 
 @app.route("/api/neuro_symbolic", methods=["POST"])
 def neuro_symbolic_endpoint():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     prompt = data.get("prompt", "")
-
     if not prompt:
         return {"error": "Prompt is required"}, 400
 
-    def generate_ns():
-        q = queue.Queue()
-        
+    cfg = LLMConfig.from_request(data)
+
+    def gen():
+        q: "queue.Queue" = queue.Queue()
+
         def ui_callback(msg):
             q.put(msg)
 
         def run_pipeline():
             try:
-                result = run_neuro_symbolic_pipeline(prompt, model=MODEL_8B, ui_callback=ui_callback)
+                result = run_neuro_symbolic_pipeline(prompt, llm=cfg, ui_callback=ui_callback)
                 q.put(f"FINAL_RESULT:{result}")
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 q.put(f"ERROR:{str(e)}")
             finally:
-                q.put(None) # End signal
+                q.put(None)
 
-        threading.Thread(target=run_pipeline).start()
+        threading.Thread(target=run_pipeline, daemon=True).start()
 
         while True:
             msg = q.get()
             if msg is None:
                 break
-            
             if msg.startswith("FINAL_RESULT:"):
-                yield f"data: {json.dumps({'final_answer': msg[13:], 'done': True})}\n\n"
+                yield _sse({"final_answer": msg[len("FINAL_RESULT:"):], "done": True})
             elif msg.startswith("ERROR:"):
-                yield f"data: {json.dumps({'error': msg[6:], 'done': True})}\n\n"
+                yield _sse({"error": msg[len("ERROR:"):], "done": True})
             else:
-                yield f"data: {json.dumps({'step': msg})}\n\n"
+                yield _sse({"step": msg})
 
-    return Response(stream_with_context(generate_ns()), content_type="text/event-stream")
+    return Response(stream_with_context(gen()), content_type="text/event-stream")
 
-def generate_stream(url, payload, headers=None):
-    import time
-    start_time = time.time()
-    try:
-        kwargs = {"json": payload, "stream": True, "timeout": 400}
-        if headers:
-            kwargs["headers"] = headers
-
-        with requests.post(url, **kwargs) as resp:
-            resp.raise_for_status()
-            for line in resp.iter_lines():
-                if line:
-                    try:
-                        chunk = json.loads(line)
-                        token = chunk.get("response", "")
-                        if token:
-                            
-                            data = json.dumps({"text": token})
-                            yield f"data: {data}\n\n"
-                        if chunk.get("done"):
-                            duration = round(time.time() - start_time, 2)
-                            done_data = json.dumps({"done": True, "time": duration})
-                            yield f"data: {done_data}\n\n"
-                            break
-                    except json.JSONDecodeError:
-                        continue
-    except Exception as e:
-        app.logger.error(f"Error streaming from {url}: {e}")
-        error_msg = json.dumps({"text": f"\n\n[Error]: {str(e)}"})
-        yield f"data: {error_msg}\n\n"
-        yield f"data: {json.dumps({'done': True, 'time': 0})}\n\n"
-
-@app.route("/api/generate/<model_type>", methods=["POST"])
-def generate(model_type):
-    data = request.get_json()
-    prompt = data.get("prompt", "")
-    
-    if not prompt:
-        return {"error": "Prompt is required"}, 400
-
-    if model_type == "8b":
-        payload = {
-            "model": MODEL_8B,
-            "prompt": prompt,
-            "stream": True,
-            "options": {
-                "temperature": 0.6,
-                "num_predict": 8192,
-                "num_ctx": 16384,
-            }
-        }
-        return Response(stream_with_context(generate_stream(OLLAMA_URL, payload)), content_type="text/event-stream")
-    
-    elif model_type == "14b":
-        payload = {
-            "model": "deepseek-r1:14b",
-            "prompt": prompt,
-            "stream": True
-        }
-        return Response(stream_with_context(generate_stream(URL_PC, payload)), content_type="text/event-stream")
-    
-    else:
-        return {"error": "Invalid model type"}, 400
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=DEBUG, port=PORT)

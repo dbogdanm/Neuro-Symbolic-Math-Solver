@@ -1,479 +1,491 @@
-// Auto-resize textarea
-const textarea = document.getElementById('prompt-input');
-textarea.addEventListener('input', function() {
-    this.style.height = 'auto';
-    this.style.height = (this.scrollHeight < 200 ? this.scrollHeight : 200) + 'px';
-});
+/* ============================================================================
+   Math-OS · client
+   BYOK settings (browser-only), SSE streaming, pipeline visualization.
+   ========================================================================== */
+(() => {
+  "use strict";
 
-textarea.addEventListener('keypress', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
+  // ----------------------------------------------------------------- state
+  const LS_KEY = "mathos.settings";
+  const DEFAULTS = {
+    provider: "ollama",
+    mode: "ns",
+    openrouter: { apiKey: "", model: "deepseek/deepseek-r1" },
+    ollama: { baseUrl: "", model: "deepseek-r1:8b" },
+    gemini: { apiKey: "", model: "gemini-2.5-flash" },
+    openai: { apiKey: "", model: "gpt-4o-mini" },
+    anthropic: { apiKey: "", model: "claude-3-5-sonnet-20241022" },
+  };
+
+  let settings = loadSettings();
+  let busy = false;
+  let modelsLoaded = false;
+
+  function loadSettings() {
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || "{}");
+      return {
+        ...DEFAULTS, ...raw,
+        openrouter: { ...DEFAULTS.openrouter, ...(raw.openrouter || {}) },
+        ollama: { ...DEFAULTS.ollama, ...(raw.ollama || {}) },
+        gemini: { ...DEFAULTS.gemini, ...(raw.gemini || {}) },
+        openai: { ...DEFAULTS.openai, ...(raw.openai || {}) },
+        anthropic: { ...DEFAULTS.anthropic, ...(raw.anthropic || {}) },
+      };
+    } catch { return structuredClone(DEFAULTS); }
+  }
+  function persist() { localStorage.setItem(LS_KEY, JSON.stringify(settings)); }
+
+  // ----------------------------------------------------------------- helpers
+  const $ = (id) => document.getElementById(id);
+  const chat = () => $("chat-stream");
+  const escapeHtml = (s) => s.replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  function typeset(el) {
+    if (window.MathJax && MathJax.typesetPromise) {
+      MathJax.typesetPromise([el]).catch(() => {});
     }
-});
+  }
+  function scrollDown() { const c = chat(); c.scrollTop = c.scrollHeight; }
 
-function clearChat() {
-    const stream = document.getElementById('chat-stream');
-    stream.innerHTML = `
-        <div class="message bot intro-message">
-            <div class="avatar-container">
-                <div class="avatar bot-avatar"><i class="fa-solid fa-robot"></i></div>
-            </div>
-            <div class="message-content">
-                <p>Welcome to Math-OS. I am a highly advanced neuro-symbolic solver. Choose your model above and ask me any mathematical question.</p>
-            </div>
-        </div>
-    `;
-}
+  function toast(msg, kind = "ok") {
+    const wrap = $("toast-wrap");
+    const t = document.createElement("div");
+    t.className = `toast ${kind}`;
+    const icon = kind === "err" ? "fa-triangle-exclamation" : "fa-circle-check";
+    t.innerHTML = `<i class="fa-solid ${icon}"></i> ${escapeHtml(msg)}`;
+    wrap.appendChild(t);
+    setTimeout(() => { t.style.opacity = "0"; t.style.transform = "translateY(10px)";
+      t.style.transition = "all .3s"; setTimeout(() => t.remove(), 320); }, 3200);
+  }
 
-function appendMessage(role, htmlContent) {
-    const stream = document.getElementById('chat-stream');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `message ${role}`;
-    
-    let avatarHtml = '';
-    if (role === 'user') {
-        avatarHtml = `
-            <div class="avatar-container">
-                <div class="avatar user-avatar"><i class="fa-solid fa-user"></i></div>
-            </div>
-        `;
-    } else {
-        avatarHtml = `
-            <div class="avatar-container">
-                <div class="avatar bot-avatar"><i class="fa-solid fa-robot"></i></div>
-            </div>
-        `;
+  // ----------------------------------------------------------------- request body
+  function llmBody() {
+    if (settings.provider === "openrouter") {
+      return { provider: "openrouter", model: settings.openrouter.model.trim(),
+               api_key: settings.openrouter.apiKey.trim() };
     }
-
-    msgDiv.innerHTML = `
-        ${avatarHtml}
-        <div class="message-content">
-            ${htmlContent}
-        </div>
-    `;
-    
-    stream.appendChild(msgDiv);
-    stream.scrollTop = stream.scrollHeight;
-    
-    return msgDiv.querySelector('.message-content');
-}
-
-function triggerMathJax(element) {
-    if (window.MathJax) {
-        MathJax.typesetPromise([element]).catch((err) => console.log(err.message));
+    if (settings.provider === "gemini") {
+      return { provider: "gemini", model: settings.gemini.model.trim(),
+               api_key: settings.gemini.apiKey.trim() };
     }
-}
+    if (settings.provider === "openai") {
+      return { provider: "openai", model: settings.openai.model.trim(),
+               api_key: settings.openai.apiKey.trim() };
+    }
+    if (settings.provider === "anthropic") {
+      return { provider: "anthropic", model: settings.anthropic.model.trim(),
+               api_key: settings.anthropic.apiKey.trim() };
+    }
+    return { provider: "ollama", model: settings.ollama.model.trim(),
+             base_url: settings.ollama.baseUrl.trim() };
+  }
+  function currentModelLabel() {
+    if (settings.provider === "openrouter") return settings.openrouter.model;
+    if (settings.provider === "gemini") return settings.gemini.model;
+    if (settings.provider === "openai") return settings.openai.model;
+    if (settings.provider === "anthropic") return settings.anthropic.model;
+    return settings.ollama.model;
+  }
 
-async function sendMessage() {
-    const prompt = textarea.value.trim();
+  // ----------------------------------------------------------------- chrome UI
+  function refreshProviderPill() {
+    const pill = $("provider-pill");
+    const isOR = settings.provider === "openrouter";
+    const isGemini = settings.provider === "gemini";
+    const noKey = (isOR && !settings.openrouter.apiKey.trim()) || (isGemini && !settings.gemini.apiKey.trim());
+    pill.classList.toggle("is-openrouter", isOR || isGemini);
+    pill.classList.toggle("is-nokey", noKey);
+    let name = "Ollama";
+    if (isOR) name = "OpenRouter";
+    if (isGemini) name = "Gemini";
+    $("provider-name").textContent = name;
+    $("provider-model").textContent = noKey ? "add your key →" : currentModelLabel();
+  }
+
+  function refreshModeUI() {
+    document.querySelectorAll("[data-mode]").forEach((el) =>
+      el.classList.toggle("active", el.dataset.mode === settings.mode));
+    positionSegGlow();
+  }
+  function positionSegGlow() {
+    const active = document.querySelector(`.seg-btn[data-mode="${settings.mode}"]`);
+    const glow = $("seg-glow");
+    if (active && glow) { glow.style.left = active.offsetLeft + "px";
+      glow.style.width = active.offsetWidth + "px"; }
+  }
+
+  // ----------------------------------------------------------------- LiveAnswer
+  // Renders one assistant turn: pipeline logs, foldable reasoning/prompt
+  // blocks, streamed markdown body, and a final meta line.
+  class LiveAnswer {
+    constructor(container) {
+      container.innerHTML = "";
+      this.container = container;
+      this.pipeline = null;
+      this.bodyEl = document.createElement("div");
+      this.bodyEl.className = "answer-card";
+      container.appendChild(this.bodyEl);
+      this.buffer = "";
+      this.thinkFold = null;
+      this.start = performance.now();
+    }
+    ensurePipeline() {
+      if (!this.pipeline) {
+        this.pipeline = document.createElement("div");
+        this.pipeline.className = "pipeline";
+        this.container.insertBefore(this.pipeline, this.bodyEl);
+      }
+      return this.pipeline;
+    }
+    addLog(text) {
+      const row = document.createElement("div");
+      row.className = "pipeline-row";
+      row.innerHTML = `<i class="fa-solid fa-angle-right ico"></i><span>${escapeHtml(text)}</span>`;
+      this.ensurePipeline().appendChild(row);
+      scrollDown();
+    }
+    addFold(title, content, kind = "think", icon = "fa-brain") {
+      const fold = document.createElement("div");
+      fold.className = `fold ${kind === "prompt" ? "is-prompt" : ""}`;
+      fold.innerHTML =
+        `<div class="fold-head"><i class="fa-solid ${icon}"></i><span>${escapeHtml(title)}</span>` +
+        `<i class="fa-solid fa-chevron-down chev"></i></div>` +
+        `<div class="fold-body"></div>`;
+      fold.querySelector(".fold-body").textContent = content;
+      fold.querySelector(".fold-head").addEventListener("click", () => fold.classList.toggle("open"));
+      this.container.insertBefore(fold, this.bodyEl);
+      scrollDown();
+      return fold;
+    }
+    // streaming tokens (with inline <think> parsing)
+    pushToken(token) {
+      this.buffer += token;
+      let main = "", think = "", mode = "main", s = this.buffer;
+      while (s.length) {
+        if (mode === "main") {
+          const i = s.indexOf("<think>");
+          if (i === -1) { main += s; break; }
+          main += s.slice(0, i); s = s.slice(i + 7); mode = "think";
+        } else {
+          const i = s.indexOf("</think>");
+          if (i === -1) { think += s; break; }
+          think += s.slice(0, i); s = s.slice(i + 8); mode = "main";
+        }
+      }
+      if (think.trim()) {
+        if (!this.thinkFold) this.thinkFold = this.addFold("Reasoning", "", "think", "fa-brain");
+        this.thinkFold.classList.add("open");
+        this.thinkFold.querySelector(".fold-body").textContent = think;
+      }
+      if (main.trim()) this.bodyEl.innerHTML = marked.parse(main);
+      scrollDown();
+    }
+    setMarkdown(md) { this.bodyEl.innerHTML = marked.parse(md); }
+    finalize(label) {
+      if (this.thinkFold && this.bodyEl.textContent.trim()) this.thinkFold.classList.remove("open");
+      const secs = ((performance.now() - this.start) / 1000).toFixed(2);
+      const meta = document.createElement("div");
+      meta.className = "meta-time";
+      meta.innerHTML = `<i class="fa-regular fa-clock"></i> ${escapeHtml(label)} · ${secs}s`;
+      const copy = document.createElement("button");
+      copy.className = "copy-btn";
+      copy.innerHTML = `<i class="fa-regular fa-copy"></i> copy`;
+      copy.addEventListener("click", () => {
+        navigator.clipboard.writeText(this.bodyEl.textContent.trim());
+        copy.innerHTML = `<i class="fa-solid fa-check"></i> copied`;
+        setTimeout(() => copy.innerHTML = `<i class="fa-regular fa-copy"></i> copy`, 1500);
+      });
+      meta.appendChild(copy);
+      this.container.appendChild(meta);
+      typeset(this.container);
+      scrollDown();
+    }
+    error(msg) {
+      this.bodyEl.innerHTML =
+        `<p style="color:var(--danger)"><i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(msg)}</p>`;
+      scrollDown();
+    }
+  }
+
+  // ----------------------------------------------------------------- SSE reader
+  async function readSSE(response, onData) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let buf = "";
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split("\n");
+      buf = lines.pop(); // keep last partial line
+      for (const line of lines) {
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload) continue;
+        try { onData(JSON.parse(payload)); } catch { /* partial */ }
+      }
+    }
+  }
+
+  // ----------------------------------------------------------------- messages
+  function appendMessage(role, innerHtml) {
+    const msg = document.createElement("div");
+    msg.className = `msg ${role}`;
+    const icon = role === "user" ? "fa-user" : "fa-wand-magic-sparkles";
+    msg.innerHTML =
+      `<div class="msg-avatar"><i class="fa-solid ${icon}"></i></div>` +
+      `<div class="msg-body">${innerHtml}</div>`;
+    chat().appendChild(msg);
+    scrollDown();
+    return msg.querySelector(".msg-body");
+  }
+  function hideHero() { const h = $("hero"); if (h) h.remove(); }
+
+  // ----------------------------------------------------------------- send
+  async function send() {
+    if (busy) return;
+    const ta = $("prompt-input");
+    const prompt = ta.value.trim();
     if (!prompt) return;
 
-    // Reset UI
-    textarea.value = '';
-    textarea.style.height = 'auto';
-    
-    // Get Selected Model
-    const modelSelect = document.getElementById('model-select');
-    const model = modelSelect.value;
-    const modelName = modelSelect.options[modelSelect.selectedIndex].text;
-
-    // Append User Message
-    appendMessage('user', `<p>${marked.parseInline(prompt)}</p>`);
-    triggerMathJax(document.getElementById('chat-stream').lastElementChild);
-
-    // Create Bot Message Container
-    const botContentContainer = appendMessage('bot', `<div class="typing-indicator"><i class="fa-solid fa-circle-notch fa-spin"></i> Processing via ${modelName}...</div>`);
-    
-    if (model === 'ns') {
-        await getNeuroSymbolicResponse(prompt, botContentContainer);
-    } else if (model === 'web_rag') {
-        await getWebRagResponse(prompt, botContentContainer);
-    } else {
-        await streamResponse(model, prompt, botContentContainer);
+    if (settings.provider === "openrouter" && !settings.openrouter.apiKey.trim()) {
+      toast("Add your OpenRouter key first — it stays in your browser.", "err");
+      openSettings();
+      return;
     }
-}
+    if (settings.provider === "gemini" && !settings.gemini.apiKey.trim()) {
+      toast("Add your Gemini API key first — it stays in your browser.", "err");
+      openSettings();
+      return;
+    }
 
-async function getWebRagResponse(prompt, container) {
+    busy = true; $("send-btn").disabled = true;
+    ta.value = ""; ta.style.height = "auto";
+    hideHero();
+
+    appendMessage("user", `<p>${marked.parseInline(prompt)}</p>`);
+    typeset(chat().lastElementChild);
+
+    const modeLabel = { ns: "Neuro-Symbolic", web_rag: "Web Search", generate: "Direct" }[settings.mode];
+    const container = appendMessage("bot",
+      `<div class="typing"><span class="spin"></span> Routing through ${escapeHtml(modeLabel)} · ${escapeHtml(currentModelLabel())}…</div>`);
+
     try {
-        const startTime = Date.now();
-        const response = await fetch(`/api/web_rag`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt })
-        });
-
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        
-        container.innerHTML = ''; // Clear indicator
-        let logContainer = document.createElement('div');
-        logContainer.className = 'pipeline-logs';
-        container.appendChild(logContainer);
-
-        let resultContainer = document.createElement('div');
-        container.appendChild(resultContainer);
-        
-        let mainText = '';
-        let fullText = '';
-        let isThinking = false;
-        let thinkText = '';
-        
-        let mainTextContainer = document.createElement('div');
-        resultContainer.appendChild(mainTextContainer);
-        
-        let currentThinkBlock = null;
-        let currentThinkContent = null;
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.replace('data: ', '').trim();
-                    if (!dataStr) continue;
-                    
-                    try {
-                        const data = JSON.parse(dataStr);
-                        
-                        if (data.step) {
-                            const stepStr = data.step;
-                            if (stepStr.startsWith('PROMPT: ')) {
-                                const promptContent = stepStr.replace('PROMPT: ', '');
-                                const promptBlock = document.createElement('div');
-                                promptBlock.className = 'think-block';
-                                promptBlock.style.borderLeftColor = '#A8C7FA';
-                                promptBlock.innerHTML = `
-                                    <div class="think-header"><i class="fa-solid fa-terminal"></i> <span>Web Search Context</span> <i class="fa-solid fa-chevron-down" style="margin-left:auto; font-size:12px;"></i></div>
-                                    <div class="think-content" style="display:none; font-family: monospace; font-size: 11px;">${promptContent}</div>
-                                `;
-                                promptBlock.querySelector('.think-header').onclick = () => {
-                                    const content = promptBlock.querySelector('.think-content');
-                                    const isHidden = content.style.display === 'none';
-                                    content.style.display = isHidden ? 'block' : 'none';
-                                    promptBlock.querySelector('.fa-chevron-down').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-                                };
-                                container.insertBefore(promptBlock, resultContainer);
-                            } else {
-                                const cleanLog = stepStr.replace('LOG: ', '');
-                                const stepDiv = document.createElement('div');
-                                stepDiv.style.color = '#9AA0A6';
-                                stepDiv.style.fontSize = '0.85rem';
-                                stepDiv.style.marginBottom = '4px';
-                                stepDiv.innerHTML = `<i class="fa-solid fa-angle-right"></i> ${cleanLog}`;
-                                logContainer.appendChild(stepDiv);
-                            }
-                        } else if (data.text) {
-                            const token = data.text;
-                            fullText += token;
-
-                            if (fullText.includes('<think>') && !isThinking) {
-                                isThinking = true;
-                                let parts = fullText.split('<think>');
-                                mainText = parts[0];
-                                fullText = parts[1] || "";
-                                
-                                if (mainText) {
-                                    mainTextContainer.innerHTML = marked.parse(mainText);
-                                }
-
-                                currentThinkBlock = document.createElement('div');
-                                currentThinkBlock.className = 'think-block';
-                                const thinkHeader = document.createElement('div');
-                                thinkHeader.className = 'think-header';
-                                thinkHeader.innerHTML = '<i class="fa-solid fa-brain"></i> <span>Reasoning</span> <i class="fa-solid fa-chevron-down" style="margin-left:auto; font-size:12px;"></i>';
-                                currentThinkContent = document.createElement('div');
-                                currentThinkContent.className = 'think-content';
-                                
-                                thinkHeader.onclick = () => {
-                                    const isHidden = currentThinkContent.style.display === 'none';
-                                    currentThinkContent.style.display = isHidden ? 'block' : 'none';
-                                    thinkHeader.querySelector('.fa-chevron-down').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-                                };
-                                
-                                currentThinkBlock.appendChild(thinkHeader);
-                                currentThinkBlock.appendChild(currentThinkContent);
-                                resultContainer.insertBefore(currentThinkBlock, mainTextContainer);
-                                
-                                thinkText = fullText;
-                                currentThinkContent.textContent = thinkText;
-                            } else if (fullText.includes('</think>') && isThinking) {
-                                isThinking = false;
-                                let parts = fullText.split('</think>');
-                                thinkText += parts[0];
-                                currentThinkContent.textContent = thinkText;
-                                currentThinkContent.style.display = 'none';
-                                
-                                let afterThink = parts[1] || "";
-                                mainText += afterThink;
-                                mainTextContainer.innerHTML = marked.parse(mainText);
-                                fullText = afterThink;
-                            } else {
-                                if (isThinking) {
-                                    thinkText += token;
-                                    if (currentThinkContent) currentThinkContent.textContent = thinkText;
-                                } else {
-                                    mainText += token;
-                                    mainTextContainer.innerHTML = marked.parse(mainText);
-                                }
-                            }
-                        } else if (data.done) {
-                            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                            const timeSpan = document.createElement('div');
-                            timeSpan.className = 'thinking-time';
-                            timeSpan.innerHTML = `<i class="fa-regular fa-clock"></i> Web-RAG completed in ${duration}s`;
-                            container.appendChild(timeSpan);
-                            triggerMathJax(container);
-                        } else if (data.error) {
-                            resultContainer.innerHTML = `<p style="color: #ff6b6b;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${data.error}</p>`;
-                        }
-                        
-                        const stream = document.getElementById('chat-stream');
-                        stream.scrollTop = stream.scrollHeight;
-                    } catch (e) {}
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Fetch error:', error);
-        container.innerHTML = `<p style="color: #ff6b6b;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}</p>`;
+      if (settings.mode === "ns") await runNeuroSymbolic(prompt, container);
+      else if (settings.mode === "web_rag") await runStreaming("/api/web_rag", prompt, container, "Web-RAG");
+      else await runStreaming("/api/generate", prompt, container, "Generation");
+    } catch (e) {
+      new LiveAnswer(container).error(e.message || String(e));
+    } finally {
+      busy = false; $("send-btn").disabled = false;
     }
-}
+  }
 
-async function getNeuroSymbolicResponse(prompt, container) {
+  async function runStreaming(url, prompt, container, label) {
+    const resp = await fetch(url, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, ...llmBody() }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ans = new LiveAnswer(container);
+    let errored = false;
+    await readSSE(resp, (d) => {
+      if (d.step) {
+        const s = d.step;
+        if (s.startsWith("PROMPT: ")) ans.addFold("Search context", s.slice(8), "prompt", "fa-terminal");
+        else ans.addLog(s.replace(/^LOG: /, ""));
+      } else if (d.text) {
+        ans.pushToken(d.text);
+      } else if (d.error) {
+        errored = true; ans.error(d.error);
+      } else if (d.done && !errored) {
+        ans.finalize(label);
+      }
+    });
+  }
+
+  async function runNeuroSymbolic(prompt, container) {
+    const resp = await fetch("/api/neuro_symbolic", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, ...llmBody() }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const ans = new LiveAnswer(container);
+    let errored = false;
+    await readSSE(resp, (d) => {
+      if (d.step) {
+        const s = d.step;
+        if (s.startsWith("THINK: ")) ans.addFold("Model reasoning", s.slice(7), "think", "fa-brain");
+        else if (s.startsWith("PROMPT: ")) ans.addFold("Injected context", s.slice(8), "prompt", "fa-terminal");
+        else ans.addLog(s.replace(/^LOG: /, "").trim());
+      } else if (d.final_answer !== undefined) {
+        ans.setMarkdown(d.final_answer);
+        ans.finalize("Pipeline");
+      } else if (d.error) {
+        errored = true; ans.error(d.error);
+      }
+    });
+  }
+
+  // ----------------------------------------------------------------- settings modal
+  function openSettings() {
+    syncSettingsForm();
+    if (!modelsLoaded) loadOpenRouterModels();
+    $("settings-modal").classList.add("open");
+  }
+  function closeSettings() { $("settings-modal").classList.remove("open"); }
+
+  function selectProvider(p) {
+    document.querySelectorAll(".pt-btn").forEach((b) =>
+      b.classList.toggle("active", b.dataset.provider === p));
+    $("fields-openrouter").classList.toggle("show", p === "openrouter");
+    $("fields-gemini").classList.toggle("show", p === "gemini");
+    $("fields-openai").classList.toggle("show", p === "openai");
+    $("fields-anthropic").classList.toggle("show", p === "anthropic");
+    $("fields-ollama").classList.toggle("show", p === "ollama");
+    settings._draftProvider = p;
+  }
+
+  function syncSettingsForm() {
+    selectProvider(settings.provider);
+    $("or-key").value = settings.openrouter.apiKey;
+    $("or-model").value = settings.openrouter.model;
+    $("ge-key").value = settings.gemini.apiKey;
+    $("ge-model").value = settings.gemini.model;
+    $("oa-key").value = settings.openai.apiKey;
+    $("oa-model").value = settings.openai.model;
+    $("an-key").value = settings.anthropic.apiKey;
+    $("an-model").value = settings.anthropic.model;
+    $("ol-base").value = settings.ollama.baseUrl;
+    $("ol-model").value = settings.ollama.model;
+  }
+
+  function saveSettings() {
+    const p = settings._draftProvider || settings.provider;
+    settings.provider = p;
+    settings.openrouter.apiKey = $("or-key").value.trim();
+    settings.openrouter.model = $("or-model").value.trim() || DEFAULTS.openrouter.model;
+    settings.gemini.apiKey = $("ge-key").value.trim();
+    settings.gemini.model = $("ge-model").value.trim() || DEFAULTS.gemini.model;
+    settings.openai.apiKey = $("oa-key").value.trim();
+    settings.openai.model = $("oa-model").value.trim() || DEFAULTS.openai.model;
+    settings.anthropic.apiKey = $("an-key").value.trim();
+    settings.anthropic.model = $("an-model").value.trim() || DEFAULTS.anthropic.model;
+    settings.ollama.baseUrl = $("ol-base").value.trim();
+    settings.ollama.model = $("ol-model").value.trim() || DEFAULTS.ollama.model;
+    delete settings._draftProvider;
+    persist();
+    refreshProviderPill();
+    closeSettings();
+    toast("Settings saved.", "ok");
+  }
+
+  function clearKey() {
+    if (settings._draftProvider === "openrouter" || settings.provider === "openrouter") {
+      $("or-key").value = "";
+      settings.openrouter.apiKey = "";
+    } else if (settings._draftProvider === "gemini" || settings.provider === "gemini") {
+      $("ge-key").value = "";
+      settings.gemini.apiKey = "";
+    } else if (settings._draftProvider === "openai" || settings.provider === "openai") {
+      $("oa-key").value = "";
+      settings.openai.apiKey = "";
+    } else if (settings._draftProvider === "anthropic" || settings.provider === "anthropic") {
+      $("an-key").value = "";
+      settings.anthropic.apiKey = "";
+    }
+    persist();
+    refreshProviderPill();
+    toast("API key cleared from this browser.", "ok");
+  }
+
+  function toggleKeyVisibility(inputId = "or-key", eyeId = "key-eye") {
+    const inp = $(inputId); const eye = $(eyeId);
+    if (!inp || !eye) return;
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    eye.className = show ? "fa-solid fa-eye-slash" : "fa-solid fa-eye";
+  }
+
+  async function loadOpenRouterModels() {
     try {
-        const startTime = Date.now();
-        const response = await fetch(`/api/neuro_symbolic`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt })
-        });
+      const resp = await fetch("/api/openrouter/models");
+      const data = await resp.json();
+      const dl = $("or-models");
+      if (!data.models || !data.models.length) return;
+      modelsLoaded = true;
+      dl.innerHTML = "";
+      data.models.slice(0, 120).forEach((m) => {
+        const opt = document.createElement("option");
+        opt.value = m.id;
+        opt.label = (m.free ? "★ free · " : "") + (m.name || m.id);
+        dl.appendChild(opt);
+      });
+      const free = data.models.filter((m) => m.free).length;
+      $("models-hint").innerHTML =
+        `${data.models.length} models available (${free} free). Start typing to filter.`;
+    } catch { /* keep built-in suggestions */ }
+  }
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-        
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        
-        container.innerHTML = ''; // Clear indicator
-        let logContainer = document.createElement('div');
-        logContainer.className = 'pipeline-logs';
-        container.appendChild(logContainer);
+  // ----------------------------------------------------------------- misc UI
+  function setMode(m) { settings.mode = m; persist(); refreshModeUI(); }
+  function clearChat() {
+    chat().innerHTML = `
+      <div class="hero" id="hero">
+        <div class="hero-glyph"><i class="fa-solid fa-infinity"></i></div>
+        <h1 class="hero-title">Solve anything,<br><em>symbolically.</em></h1>
+        <p class="hero-sub">A hybrid engine that hands rigid arithmetic to a deterministic SymPy core
+        and lets the model reason — zero calculation hallucinations.</p>
+        <div class="chips" id="example-chips">
+          <button class="chip" onclick="MathOS.useExample(this)">Find the smallest positive perfect cube that is a sum of three consecutive integers.</button>
+          <button class="chip" onclick="MathOS.useExample(this)">How many ordered pairs of integers $(x,y)$ in $[-100,100]$ satisfy $12x^2 - xy - 6y^2 = 0$?</button>
+          <button class="chip" onclick="MathOS.useExample(this)">Solve $\\sqrt{11 - 2x} = x - 4$.</button>
+          <button class="chip" onclick="MathOS.useExample(this)">Sum of all positive integers $n$ such that $n+2$ divides $3(n+3)(n^2+9)$.</button>
+        </div>
+      </div>`;
+    typeset(chat());
+  }
+  function useExample(el) {
+    const ta = $("prompt-input");
+    ta.value = el.textContent.trim();
+    ta.focus(); autoresize(ta);
+  }
+  function toggleSidebar() { $("sidebar").classList.toggle("open"); }
 
-        let resultContainer = document.createElement('div');
-        container.appendChild(resultContainer);
+  function autoresize(ta) {
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+  }
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.replace('data: ', '').trim();
-                    if (!dataStr) continue;
-                    
-                    try {
-                        const data = JSON.parse(dataStr);
-                        
-                        if (data.step) {
-                            const stepStr = data.step;
-                            if (stepStr.startsWith('THINK: ')) {
-                                const thinkContent = stepStr.replace('THINK: ', '');
-                                const thinkBlock = document.createElement('div');
-                                thinkBlock.className = 'think-block';
-                                thinkBlock.innerHTML = `
-                                    <div class="think-header"><i class="fa-solid fa-brain"></i> <span>Model Reasoning</span> <i class="fa-solid fa-chevron-down" style="margin-left:auto; font-size:12px;"></i></div>
-                                    <div class="think-content" style="display:none;">${thinkContent}</div>
-                                `;
-                                thinkBlock.querySelector('.think-header').onclick = () => {
-                                    const content = thinkBlock.querySelector('.think-content');
-                                    const isHidden = content.style.display === 'none';
-                                    content.style.display = isHidden ? 'block' : 'none';
-                                    thinkBlock.querySelector('.fa-chevron-down').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-                                };
-                                container.insertBefore(thinkBlock, resultContainer);
-                            } else if (stepStr.startsWith('PROMPT: ')) {
-                                const promptContent = stepStr.replace('PROMPT: ', '');
-                                const promptBlock = document.createElement('div');
-                                promptBlock.className = 'think-block'; // Reusing style for consistency
-                                promptBlock.style.borderLeftColor = '#A8C7FA';
-                                promptBlock.innerHTML = `
-                                    <div class="think-header"><i class="fa-solid fa-terminal"></i> <span>Internal Prompt / Injection</span> <i class="fa-solid fa-chevron-down" style="margin-left:auto; font-size:12px;"></i></div>
-                                    <div class="think-content" style="display:none; font-family: monospace; font-size: 11px;">${promptContent}</div>
-                                `;
-                                promptBlock.querySelector('.think-header').onclick = () => {
-                                    const content = promptBlock.querySelector('.think-content');
-                                    const isHidden = content.style.display === 'none';
-                                    content.style.display = isHidden ? 'block' : 'none';
-                                    promptBlock.querySelector('.fa-chevron-down').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-                                };
-                                container.insertBefore(promptBlock, resultContainer);
-                            } else {
-                                // Standard LOG
-                                const cleanLog = stepStr.replace('LOG: ', '');
-                                const stepDiv = document.createElement('div');
-                                stepDiv.style.color = '#9AA0A6';
-                                stepDiv.style.fontSize = '0.85rem';
-                                stepDiv.style.marginBottom = '4px';
-                                stepDiv.innerHTML = `<i class="fa-solid fa-angle-right"></i> ${cleanLog}`;
-                                logContainer.appendChild(stepDiv);
-                            }
-                        } else if (data.final_answer) {
-                            resultContainer.innerHTML = marked.parse(data.final_answer);
-                            const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-                            const timeSpan = document.createElement('div');
-                            timeSpan.className = 'thinking-time';
-                            timeSpan.innerHTML = `<i class="fa-regular fa-clock"></i> Pipeline finished in ${duration}s`;
-                            container.appendChild(timeSpan);
-                            triggerMathJax(container);
-                        } else if (data.error) {
-                            resultContainer.innerHTML = `<p style="color: #ff6b6b;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${data.error}</p>`;
-                        }
-                        
-                        const stream = document.getElementById('chat-stream');
-                        stream.scrollTop = stream.scrollHeight;
-                    } catch (e) {}
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Fetch error:', error);
-        container.innerHTML = `<p style="color: #ff6b6b;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}</p>`;
-    }
-}
+  // ----------------------------------------------------------------- init
+  function init() {
+    const ta = $("prompt-input");
+    ta.addEventListener("input", () => autoresize(ta));
+    ta.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
+    });
+    window.addEventListener("resize", positionSegGlow);
+    $("settings-modal").addEventListener("click", (e) => {
+      if (e.target === $("settings-modal")) closeSettings();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeSettings();
+    });
+    refreshProviderPill();
+    refreshModeUI();
+    // re-place glow after fonts settle
+    setTimeout(positionSegGlow, 250);
+  }
 
-async function streamResponse(model, prompt, container) {
-    try {
-        const response = await fetch(`/api/generate/${model}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: prompt })
-        });
+  // expose
+  window.MathOS = {
+    send, setMode, clearChat, useExample, toggleSidebar,
+    openSettings, closeSettings, selectProvider, saveSettings,
+    clearKey, toggleKeyVisibility,
+  };
 
-        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-        
-        let fullText = '';
-        let isThinking = false;
-        let thinkText = '';
-        let mainText = '';
-
-        container.innerHTML = ''; // Clear typing indicator
-        
-        let mainTextContainer = document.createElement('div');
-        container.appendChild(mainTextContainer);
-        
-        let currentThinkBlock = null;
-        let currentThinkContent = null;
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const dataStr = line.replace('data: ', '').trim();
-                    if (!dataStr) continue;
-                    
-                    try {
-                        const data = JSON.parse(dataStr);
-                        
-                        if (data.done) {
-                            const timeSpan = document.createElement('div');
-                            timeSpan.className = 'thinking-time';
-                            timeSpan.innerHTML = `<i class="fa-regular fa-clock"></i> Generation completed in ${data.time}s`;
-                            container.appendChild(timeSpan);
-                            triggerMathJax(container); // Final math render
-                            continue;
-                        }
-
-                        const token = data.text;
-                        if (!token) continue;
-                        fullText += token;
-
-                        // Handle <think> blocks
-                        if (fullText.includes('<think>') && !isThinking) {
-                            isThinking = true;
-                            let parts = fullText.split('<think>');
-                            mainText = parts[0];
-                            fullText = parts[1] || "";
-                            
-                            if (mainText) {
-                                mainTextContainer.innerHTML = marked.parse(mainText);
-                            }
-
-                            currentThinkBlock = document.createElement('div');
-                            currentThinkBlock.className = 'think-block';
-                            
-                            const thinkHeader = document.createElement('div');
-                            thinkHeader.className = 'think-header';
-                            thinkHeader.innerHTML = '<i class="fa-solid fa-brain"></i> <span>Reasoning</span> <i class="fa-solid fa-chevron-down" style="margin-left:auto; font-size:12px;"></i>';
-                            
-                            currentThinkContent = document.createElement('div');
-                            currentThinkContent.className = 'think-content';
-                            
-                            thinkHeader.onclick = () => {
-                                const isHidden = currentThinkContent.style.display === 'none';
-                                currentThinkContent.style.display = isHidden ? 'block' : 'none';
-                                thinkHeader.querySelector('.fa-chevron-down').style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-                            };
-                            
-                            currentThinkBlock.appendChild(thinkHeader);
-                            currentThinkBlock.appendChild(currentThinkContent);
-                            container.insertBefore(currentThinkBlock, mainTextContainer);
-                            
-                            thinkText = fullText;
-                            currentThinkContent.textContent = thinkText;
-                            
-                        } else if (fullText.includes('</think>') && isThinking) {
-                            isThinking = false;
-                            let parts = fullText.split('</think>');
-                            thinkText += parts[0];
-                            currentThinkContent.textContent = thinkText;
-                            
-                            // Close the think block visually when done
-                            currentThinkContent.style.display = 'none';
-                            
-                            let afterThink = parts[1] || "";
-                            mainText += afterThink;
-                            mainTextContainer.innerHTML = marked.parse(mainText);
-                            fullText = afterThink; 
-                        } else {
-                            if (isThinking) {
-                                thinkText += token;
-                                if (currentThinkContent) {
-                                    currentThinkContent.textContent = thinkText;
-                                }
-                            } else {
-                                mainText += token;
-                                mainTextContainer.innerHTML = marked.parse(mainText);
-                            }
-                        }
-                        
-                        const stream = document.getElementById('chat-stream');
-                        stream.scrollTop = stream.scrollHeight;
-
-                    } catch (e) {
-                        // ignore JSON parse errors for incomplete chunks
-                    }
-                }
-            }
-        }
-    } catch (error) {
-        console.error('Fetch error:', error);
-        container.innerHTML += `<p style="color: #ff6b6b;"><i class="fa-solid fa-triangle-exclamation"></i> Error: ${error.message}</p>`;
-    }
-}
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
+  else init();
+})();
