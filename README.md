@@ -7,7 +7,7 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue.svg?style=flat-square)
 ![Framework](https://img.shields.io/badge/Backend-Flask-black?style=flat-square)
 ![Math Engine](https://img.shields.io/badge/Engine-SymPy-green?style=flat-square)
-![LLM](https://img.shields.io/badge/LLM-Ollama-orange?style=flat-square)
+![LLM](https://img.shields.io/badge/LLM-Ollama%20%2B%20BYOK-orange?style=flat-square)
 ![Dockerized](https://img.shields.io/badge/Deployment-Docker-blue?style=flat-square)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
@@ -84,7 +84,7 @@ In my ablation studies evaluated on frontier mathematical benchmarks, wrapping e
 | **Backend** | Flask (Python 3.11) |
 | **Frontend** | Vanilla JavaScript, CSS3 (Glassmorphism), MathJax, Marked |
 | **Math Engine** | SymPy (Python Runtime) |
-| **LLM Runtime** | Ollama (DeepSeek-R1 or any LLM you like) |
+| **LLM Runtime** | BYOK — local **Ollama** (default, free) or a cloud model via **OpenRouter**, **OpenAI**, **Anthropic**, or **Google Gemini** (your key, stored only in the browser) |
 | **Vector Store** | ChromaDB |
 | **Web Retrieval** | DuckDuckGo Search API |
 
@@ -162,6 +162,61 @@ My system follows a strict deterministic and interpretable reasoning loop to bri
   * **Recommended Models:**
       * `deepseek-r1:8b` (default)
       * `llama3:8b-instruct`
+
+-----
+
+## Model Providers (Bring Your Own Key)
+
+The engine is provider-agnostic. Pick a provider in the in-app **Settings** panel:
+
+| Provider | Key required | Notes |
+| :--- | :---: | :--- |
+| **Ollama** | No | Local, free, default. Runs any model you've pulled. |
+| **OpenRouter** | Yes | One key, 300+ models (many free). |
+| **OpenAI** | Yes | Native GPT models. |
+| **Anthropic** | Yes | Native Claude models. |
+| **Google Gemini** | Yes | AI Studio key. |
+
+Keys are entered in the browser and forwarded per request — they are **never**
+stored on the server. A deployer can optionally provide a server-side fallback
+key via environment variables (see `.env.example`); BYOK keys always take
+precedence.
+
+-----
+
+## Development
+
+Install the dev dependencies, then run the linter and the test suite:
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .          # lint
+pytest                # unit + route tests (no Ollama / network needed)
+```
+
+GitHub Actions runs `ruff` and `pytest` on every push and pull request
+(`.github/workflows/ci.yml`).
+
+A reproducibility script for the SVAMP benchmark is included:
+
+```bash
+python tests/eval_svamp_batch.py --limit 20 --provider ollama --model deepseek-r1:8b
+```
+
+-----
+
+## Security & Privacy
+
+* **Code execution.** To eliminate arithmetic hallucinations, the pipeline runs
+  LLM-generated SymPy code. It executes in a **separate process with a hard
+  timeout** (process isolation), but this is **not** a security sandbox — the
+  code runs with full Python builtins. The system is designed as a **local,
+  single-user research tool**. Do not expose the `/api/neuro_symbolic` endpoint
+  to untrusted users without adding OS-level isolation (a locked-down container
+  with no network and a read-only filesystem) and restricting builtins/imports.
+* **API keys.** BYOK keys live only in the browser's `localStorage` and are sent
+  straight to the chosen provider per request. Nothing is logged or written to
+  disk server-side.
 
 -----
 
