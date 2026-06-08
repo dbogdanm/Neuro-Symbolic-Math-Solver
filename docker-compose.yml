@@ -1,18 +1,14 @@
-version: '3.8'
-
 services:
   math-os:
     build: .
     ports:
       - "5000:5000"
     environment:
-      - FLASK_ENV=development
+      - HOST=0.0.0.0
+      - PORT=5000
+      - FLASK_DEBUG=0
+      # Reach an Ollama server running on the host machine.
       - OLLAMA_URL=http://host.docker.internal:11434
     extra_hosts:
       - "host.docker.internal:host-gateway"
-    volumes:
-      - .:/app
-      # Persist ChromaDB data
-      - ./chroma_db_reguli:/app/chroma_db_reguli
-      - ./math_chroma_db:/app/math_chroma_db
     restart: unless-stopped

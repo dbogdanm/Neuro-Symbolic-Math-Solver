@@ -31,6 +31,13 @@ from typing import Iterator, Optional
 
 import requests
 
+try:  # Load a local .env (if present) before any os.environ reads below.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:  # python-dotenv is optional
+    pass
+
 # --------------------------------------------------------------------------- #
 # Defaults / environment
 # --------------------------------------------------------------------------- #

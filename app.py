@@ -24,7 +24,8 @@ from web_search import get_web_hint
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"
+DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
+HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "5000"))
 
 
@@ -207,4 +208,7 @@ def neuro_symbolic_endpoint():
 
 
 if __name__ == "__main__":
-    app.run(debug=DEBUG, port=PORT)
+    # threaded=True lets an SSE response stream while its pipeline worker thread
+    # runs. HOST defaults to localhost; set HOST=0.0.0.0 to expose the server
+    # (the Docker image does this).
+    app.run(host=HOST, port=PORT, debug=DEBUG, threaded=True)
