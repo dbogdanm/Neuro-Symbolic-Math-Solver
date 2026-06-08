@@ -422,106 +422,89 @@ def _openrouter_stream(config, prompt, temperature, max_tokens, timeout):
 # --------------------------------------------------------------------------- #
 
 def _gemini_url(config: LLMConfig, stream: bool = False) -> str:
-    base = (config.base_url or GEMINI_BASE).rstrip('/')
-    endpoint = 'streamGenerateContent' if stream else 'generateContent'
-    return f'{base}/models/{config.model}:{endpoint}?key={config.api_key}'
+    base = (config.base_url or GEMINI_BASE).rstrip("/")
+    endpoint = "streamGenerateContent" if stream else "generateContent"
+    return f"{base}/models/{config.model}:{endpoint}?key={config.api_key}"
 
 
 def _gemini_payload(prompt: str, temperature: float, max_tokens: int, json_mode: bool) -> dict:
     payload = {
-        'contents': [{'parts': [{'text': prompt}]}],
-        'generationConfig': {
-            'temperature': temperature,
-            'maxOutputTokens': max_tokens,
-        }
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
     }
     if json_mode:
-        payload['generationConfig']['responseMimeType'] = 'application/json'
+        payload["generationConfig"]["responseMimeType"] = "application/json"
     return payload
 
 
 def _raise_gemini(exc: Exception, resp: Optional[requests.Response]) -> None:
     if resp is not None and resp.status_code == 400:
-         raise LLMError('Gemini error: Bad Request (400). The model may not exist or the payload is malformed.')
+        raise LLMError(
+            "Gemini error: Bad Request (400). The model may not exist or the "
+            "payload is malformed."
+        )
     if resp is not None and resp.status_code == 403:
-         raise LLMError('Gemini rejected the API key (403). Check it in Settings.')
+        raise LLMError("Gemini rejected the API key (403). Check it in Settings.")
     if resp is not None and resp.status_code == 429:
-         raise LLMError('Gemini rate limit hit (429). Slow down.')
-    detail = ''
+        raise LLMError("Gemini rate limit hit (429). Slow down.")
+    detail = ""
     if resp is not None:
         try:
-            detail = resp.json().get('error', {}).get('message', '')
-        except Exception:
-            detail = resp.text[:200] if resp.text else ''
-    raise LLMError(f'Gemini error: {detail or exc}')
+            detail = resp.json().get("error", {}).get("message", "")
+        except Exception:  # noqa: BLE001
+            detail = resp.text[:200] if resp.text else ""
+    raise LLMError(f"Gemini error: {detail or exc}")
 
 
 def _gemini_complete(config, prompt, temperature, max_tokens, json_mode, timeout) -> str:
     payload = _gemini_payload(prompt, temperature, max_tokens, json_mode)
     resp = None
     try:
-        resp = requests.post(
-            _gemini_url(config, stream=False),
-            json=payload,
-            timeout=timeout,
-        )
+        resp = requests.post(_gemini_url(config, stream=False), json=payload, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
-        
-        # Some Gemini models (like 2.0 Thinking) might return thought blocks.
-        # But generally they just return text in the first candidate.
         try:
-            content = data['candidates'][0]['content']['parts'][0]['text']
-            return content
+            return data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError):
-            return ''
-
-    except Exception as exc:
+            return ""
+    except Exception as exc:  # noqa: BLE001
         _raise_gemini(exc, resp)
 
 
 def _gemini_stream(config, prompt, temperature, max_tokens, timeout) -> Iterator[str]:
-    # Gemini uses server-sent events for streaming, but it's an array of chunks or SSE based on header.
-    # The default /v1beta/...:streamGenerateContent with alt=sse query param acts like OpenAI SSE.
-    url = _gemini_url(config, stream=True) + '&alt=sse'
+    # streamGenerateContent with alt=sse emits OpenAI-style "data:" SSE frames.
+    url = _gemini_url(config, stream=True) + "&alt=sse"
     payload = _gemini_payload(prompt, temperature, max_tokens, False)
     resp = None
-    
     try:
-        with requests.post(
-            url,
-            json=payload,
-            stream=True,
-            timeout=timeout,
-        ) as resp:
+        with requests.post(url, json=payload, stream=True, timeout=timeout) as resp:
             if resp.status_code >= 400:
-                _raise_gemini(RuntimeError('bad status'), resp)
-                
+                _raise_gemini(RuntimeError("bad status"), resp)
             for raw in resp.iter_lines():
                 if not raw:
                     continue
-                line = raw.decode('utf-8').strip()
-                if not line.startswith('data:'):
+                line = raw.decode("utf-8").strip()
+                if not line.startswith("data:"):
                     continue
-                data = line[len('data:'):].strip()
+                data = line[len("data:"):].strip()
                 if not data:
                     continue
-                    
                 try:
                     chunk = json.loads(data)
                 except json.JSONDecodeError:
                     continue
-                    
                 try:
-                    text = chunk['candidates'][0]['content']['parts'][0]['text']
-                    if text:
-                        yield text
+                    text = chunk["candidates"][0]["content"]["parts"][0]["text"]
                 except (KeyError, IndexError):
                     continue
-                    
+                if text:
+                    yield text
     except LLMError:
         raise
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         _raise_gemini(exc, resp)
 
 

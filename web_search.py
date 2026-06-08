@@ -1,6 +1,8 @@
 import re
+
 import requests
 from duckduckgo_search import DDGS
+
 
 def _fallback_html_search(query: str, max_results: int) -> list:
     url = "https://html.duckduckgo.com/html/"
@@ -10,7 +12,11 @@ def _fallback_html_search(query: str, max_results: int) -> list:
     try:
         r = requests.post(url, data=data, headers=headers, timeout=10)
         if r.status_code == 200:
-            snippets = re.findall(r'<a class="result__snippet[^>]*>(.*?)</a>', r.text, re.DOTALL | re.IGNORECASE)
+            snippets = re.findall(
+                r'<a class="result__snippet[^>]*>(.*?)</a>',
+                r.text,
+                re.DOTALL | re.IGNORECASE,
+            )
             for s in snippets:
                 clean_snippet = re.sub(r'<[^>]+>', '', s).strip()
                 if clean_snippet:

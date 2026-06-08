@@ -13,8 +13,8 @@ import queue
 import threading
 import time
 
-from flask import Flask, Response, render_template, request, stream_with_context
 import requests
+from flask import Flask, Response, render_template, request, stream_with_context
 
 import llm as llm_layer
 from llm import LLMConfig, LLMError
@@ -139,9 +139,11 @@ def web_rag_endpoint():
             "LIVE_SEARCH_DATA:\n"
             f"{context if context else 'No live data returned from the search engine.'}\n\n"
             "INSTRUCTIONS:\n"
-            f"- Treat {current_date} as today's date and the live data above as current and accurate.\n"
+            f"- Treat {current_date} as today's date and the live data above as "
+            "current and accurate.\n"
             "- Do not refuse based on a training cutoff; use the provided data to answer.\n"
-            "- If the data is insufficient, say so and give the last known state as historical context.\n"
+            "- If the data is insufficient, say so and give the last known state "
+            "as historical context.\n"
             "</SYSTEM_CONTEXT>\n\n"
             f"USER_REQUEST: {prompt}"
         )
