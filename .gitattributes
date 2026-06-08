@@ -1,0 +1,8 @@
+# Normalize line endings: code is LF in the repo regardless of OS checkout.
+* text=auto eol=lf
+
+# Treat the vector store and images as binary (never normalize/diff).
+chroma_db_reguli/** binary
+*.png binary
+*.bin binary
+*.sqlite3 binary

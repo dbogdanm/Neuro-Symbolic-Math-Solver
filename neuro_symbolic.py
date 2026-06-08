@@ -8,27 +8,28 @@ pipeline runs on a local Ollama model or any OpenRouter model the user brings a
 key for (BYOK).
 """
 
-import re
+import concurrent.futures
 import hashlib
 import multiprocessing
-import concurrent.futures
 import queue
+import re
 from typing import Callable, Optional
 
 import sympy as sp
 
 import llm as llm_layer
 from llm import LLMConfig
-from web_search import get_web_hint
 
-try:
-    from rules_base import find_hint
-    RAG_AVAILABLE = True
-except ImportError:
-    RAG_AVAILABLE = False
-    print("[WARNING] rules_base not found — RAG disabled.")
+# rules_base (ChromaDB) and web_search (DuckDuckGo) are imported lazily inside
+# get_rag_hint(). This keeps the module's import cost low so the sandboxed
+# execution subprocess — re-imported per PoT run under the "spawn" start method
+# on Windows/macOS — does not pull in the vector store and search stack each
+# time, and so importing this module has no I/O side effects.
 
+# Bounded in-process cache of generated PoT code, keyed by (model, structure,
+# hint). Capped so a long-running server cannot grow it without limit.
 _pot_cache: dict = {}
+_POT_CACHE_MAX = 256
 
 
 def _log(msg: str, ui_callback: Optional[Callable[[str], None]] = None, **kwargs):
@@ -65,10 +66,12 @@ def solve_simple_math(problem: str) -> str:
             expr = sp.sympify(f"({left}) - ({right})")
             sol = sp.solve(expr)
             return f"The solutions are: {sol}"
-        result = sp.sympify(clean_problem).evalf()
-        if result == int(result):
-            return str(int(result))
-        return str(round(result, 6))
+        # Note: a sympy Float never compares == to a Python int, so convert to a
+        # native float to detect whole numbers and render them cleanly.
+        value = float(sp.sympify(clean_problem).evalf())
+        if value.is_integer():
+            return str(int(value))
+        return str(round(value, 6))
     except Exception as e:
         print(f"  [FastPath Error]: {e}")
         return ""
@@ -114,8 +117,10 @@ def extract_problem_type(problem: str, llm: LLMConfig,
                          ui_callback: Optional[Callable[[str], None]] = None) -> str:
     _log("  [RAG] Extracting problem type...", ui_callback)
     prompt = (
-        "You are a math problem classifier. Describe the MATHEMATICAL TYPE in 1-2 VERY SHORT sentences.\n"
-        "Focus on structures (sequences, subsets), techniques (recurrence, combinatorics), and domain.\n"
+        "You are a math problem classifier. Describe the MATHEMATICAL TYPE in "
+        "1-2 VERY SHORT sentences.\n"
+        "Focus on structures (sequences, subsets), techniques (recurrence, "
+        "combinatorics), and domain.\n"
         "Output ONLY the type description. No explanations.\n\n"
         f"Problem: {problem}"
     )
@@ -127,7 +132,10 @@ def extract_problem_type(problem: str, llm: LLMConfig,
 
 def get_rag_hint(problem: str, llm: LLMConfig,
                  ui_callback: Optional[Callable[[str], None]] = None) -> str:
-    if not RAG_AVAILABLE:
+    try:
+        from rules_base import find_hint
+    except Exception as exc:  # noqa: BLE001 - RAG is an optional dependency
+        _log(f"LOG: [RAG] Disabled ({exc}).", ui_callback)
         return ""
 
     tip = extract_problem_type(problem, llm=llm, ui_callback=ui_callback)
@@ -143,6 +151,7 @@ def get_rag_hint(problem: str, llm: LLMConfig,
 
     # 2. Web search fallback
     _log("LOG: [RAG] No internal hint. Searching Web...", ui_callback)
+    from web_search import get_web_hint
     web_hint = get_web_hint(tip)
     if web_hint:
         _log("LOG: [RAG] Web search results incorporated.", ui_callback)
@@ -160,7 +169,8 @@ def step1_semantic_parser(problem: str, llm: LLMConfig,
                           ui_callback: Optional[Callable[[str], None]] = None) -> str:
     _log("  [NS] Stage 1: Semantic Parsing...", ui_callback)
     prompt = (
-        "Respond ONLY with a valid JSON object extracting: variables, known_values, constraints, and goal.\n"
+        "Respond ONLY with a valid JSON object extracting: variables, "
+        "known_values, constraints, and goal.\n"
         f"Problem: {problem}"
     )
     parsed_dict = call_llm_json(prompt, llm=llm, ui_callback=ui_callback)
@@ -189,6 +199,8 @@ def step2_pot_generator(parsed_structure: str, llm: LLMConfig, hint: str = "",
     _log("  [NS] Stage 2: Generating Program-of-Thought...", ui_callback)
     result = call_llm(prompt, llm=llm, num_ctx=16384, ui_callback=ui_callback)
     result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL).strip()
+    if len(_pot_cache) >= _POT_CACHE_MAX:
+        _pot_cache.pop(next(iter(_pot_cache)))  # evict oldest (FIFO)
     _pot_cache[cache_key] = result
     return result
 
@@ -210,14 +222,33 @@ def step3_code_validator(code_response: str,
 
 # --------------------------------------------------------------------------- #
 # Sandboxed execution
+#
+# SECURITY MODEL: the Program-of-Thought code is generated by an LLM and is
+# therefore untrusted. It runs in a separate process with a hard wall-clock
+# timeout, so a hang or crash can never take down the server. This is process
+# *isolation*, NOT a security sandbox — the code runs with full Python builtins
+# and may import modules or touch the filesystem/network. That is acceptable for
+# the intended use (a local, single-user research tool driving a local model).
+# Do NOT expose this endpoint to untrusted users without first restricting
+# builtins/imports and adding OS-level isolation (e.g. a locked-down container
+# with no network and a read-only filesystem).
 # --------------------------------------------------------------------------- #
 
+class SandboxError(RuntimeError):
+    """Raised when sandboxed PoT code fails to execute or yields no result."""
+
+
 def _worker_exec(code, q):
-    namespace = {"sp": sp, "sympy": sp}
+    """Execute generated code in a child process and report final_result back."""
+    import itertools
+    import math
+
+    # Pre-bind common libraries so generated code can use them without imports.
+    namespace = {"sp": sp, "sympy": sp, "math": math, "itertools": itertools}
     try:
-        exec(code, namespace)  # noqa: S102 - runs in an isolated subprocess
-        q.put(("SUCCESS", namespace.get('final_result')))
-    except Exception as e:
+        exec(code, namespace)  # noqa: S102 - intentional; see SECURITY MODEL above
+        q.put(("SUCCESS", namespace.get("final_result")))
+    except Exception as e:  # noqa: BLE001 - report any failure back to the parent
         q.put(("ERROR", str(e)))
 
 
@@ -232,11 +263,11 @@ def execute_code_with_timeout(python_code: str, timeout: int = 120):
         raise TimeoutError("Execution timed out.")
     try:
         status, result = q.get_nowait()
-        if status == "ERROR":
-            raise Exception(result)
-        return result
     except queue.Empty:
-        raise Exception("Code failed to produce a result.")
+        raise SandboxError("Code failed to produce a result.") from None
+    if status == "ERROR":
+        raise SandboxError(result)
+    return result
 
 
 # --------------------------------------------------------------------------- #
@@ -261,7 +292,11 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
         future_parse = executor.submit(step1_semantic_parser, problem, llm, ui_callback)
 
         if not hint and future_hint is not None:
-            _log("  [NS] Stage 0: Retrieval (RAG + Web) running in parallel with Stage 1 (Parsing)...", ui_callback)
+            _log(
+                "  [NS] Stage 0: Retrieval (RAG + Web) running in parallel with "
+                "Stage 1 (Parsing)...",
+                ui_callback,
+            )
             hint = future_hint.result()
 
         parsed_structure = future_parse.result()
@@ -274,9 +309,14 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
     for attempt in range(1, max_retries + 1):
         try:
             if attempt == 1:
-                raw_pot = step2_pot_generator(parsed_structure, llm=llm, hint=hint, ui_callback=ui_callback)
+                raw_pot = step2_pot_generator(
+                    parsed_structure, llm=llm, hint=hint, ui_callback=ui_callback
+                )
             else:
-                _log(f"  [NS] Stage 2: Self-Correction Attempt {attempt}/{max_retries}...", ui_callback)
+                _log(
+                    f"  [NS] Stage 2: Self-Correction Attempt {attempt}/{max_retries}...",
+                    ui_callback,
+                )
                 error_prompt = (
                     "Your previous Python SymPy code failed with the following error:\n"
                     f"{last_error}\n\n"

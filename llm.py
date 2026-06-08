@@ -31,6 +31,13 @@ from typing import Iterator, Optional
 
 import requests
 
+try:  # Load a local .env (if present) before any os.environ reads below.
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:  # python-dotenv is optional
+    pass
+
 # --------------------------------------------------------------------------- #
 # Defaults / environment
 # --------------------------------------------------------------------------- #
@@ -415,170 +422,175 @@ def _openrouter_stream(config, prompt, temperature, max_tokens, timeout):
         raise
     except Exception as exc:  # noqa: BLE001
         _raise_openrouter(exc, resp)
-\
+
+
 # --------------------------------------------------------------------------- #
 # Gemini transport (Google AI Studio)
 # --------------------------------------------------------------------------- #
 
 def _gemini_url(config: LLMConfig, stream: bool = False) -> str:
-    base = (config.base_url or GEMINI_BASE).rstrip('/')
-    endpoint = 'streamGenerateContent' if stream else 'generateContent'
-    return f'{base}/models/{config.model}:{endpoint}?key={config.api_key}'
+    base = (config.base_url or GEMINI_BASE).rstrip("/")
+    endpoint = "streamGenerateContent" if stream else "generateContent"
+    return f"{base}/models/{config.model}:{endpoint}?key={config.api_key}"
 
 
 def _gemini_payload(prompt: str, temperature: float, max_tokens: int, json_mode: bool) -> dict:
     payload = {
-        'contents': [{'parts': [{'text': prompt}]}],
-        'generationConfig': {
-            'temperature': temperature,
-            'maxOutputTokens': max_tokens,
-        }
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
     }
     if json_mode:
-        payload['generationConfig']['responseMimeType'] = 'application/json'
+        payload["generationConfig"]["responseMimeType"] = "application/json"
     return payload
 
 
 def _raise_gemini(exc: Exception, resp: Optional[requests.Response]) -> None:
     if resp is not None and resp.status_code == 400:
-         raise LLMError('Gemini error: Bad Request (400). The model may not exist or the payload is malformed.')
+        raise LLMError(
+            "Gemini error: Bad Request (400). The model may not exist or the "
+            "payload is malformed."
+        )
     if resp is not None and resp.status_code == 403:
-         raise LLMError('Gemini rejected the API key (403). Check it in Settings.')
+        raise LLMError("Gemini rejected the API key (403). Check it in Settings.")
     if resp is not None and resp.status_code == 429:
-         raise LLMError('Gemini rate limit hit (429). Slow down.')
-    detail = ''
+        raise LLMError("Gemini rate limit hit (429). Slow down.")
+    detail = ""
     if resp is not None:
         try:
-            detail = resp.json().get('error', {}).get('message', '')
-        except Exception:
-            detail = resp.text[:200] if resp.text else ''
-    raise LLMError(f'Gemini error: {detail or exc}')
+            detail = resp.json().get("error", {}).get("message", "")
+        except Exception:  # noqa: BLE001
+            detail = resp.text[:200] if resp.text else ""
+    raise LLMError(f"Gemini error: {detail or exc}")
 
 
 def _gemini_complete(config, prompt, temperature, max_tokens, json_mode, timeout) -> str:
     payload = _gemini_payload(prompt, temperature, max_tokens, json_mode)
     resp = None
     try:
-        resp = requests.post(
-            _gemini_url(config, stream=False),
-            json=payload,
-            timeout=timeout,
-        )
+        resp = requests.post(_gemini_url(config, stream=False), json=payload, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
-        
-        # Some Gemini models (like 2.0 Thinking) might return thought blocks.
-        # But generally they just return text in the first candidate.
         try:
-            content = data['candidates'][0]['content']['parts'][0]['text']
-            return content
+            return data["candidates"][0]["content"]["parts"][0]["text"]
         except (KeyError, IndexError):
-            return ''
-
-    except Exception as exc:
+            return ""
+    except Exception as exc:  # noqa: BLE001
         _raise_gemini(exc, resp)
 
 
 def _gemini_stream(config, prompt, temperature, max_tokens, timeout) -> Iterator[str]:
-    # Gemini uses server-sent events for streaming, but it's an array of chunks or SSE based on header.
-    # The default /v1beta/...:streamGenerateContent with alt=sse query param acts like OpenAI SSE.
-    url = _gemini_url(config, stream=True) + '&alt=sse'
+    # streamGenerateContent with alt=sse emits OpenAI-style "data:" SSE frames.
+    url = _gemini_url(config, stream=True) + "&alt=sse"
     payload = _gemini_payload(prompt, temperature, max_tokens, False)
     resp = None
-    
+    try:
+        with requests.post(url, json=payload, stream=True, timeout=timeout) as resp:
+            if resp.status_code >= 400:
+                _raise_gemini(RuntimeError("bad status"), resp)
+            for raw in resp.iter_lines():
+                if not raw:
+                    continue
+                line = raw.decode("utf-8").strip()
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:"):].strip()
+                if not data:
+                    continue
+                try:
+                    chunk = json.loads(data)
+                except json.JSONDecodeError:
+                    continue
+                try:
+                    text = chunk["candidates"][0]["content"]["parts"][0]["text"]
+                except (KeyError, IndexError):
+                    continue
+                if text:
+                    yield text
+    except LLMError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _raise_gemini(exc, resp)
+
+
+# --------------------------------------------------------------------------- #
+# OpenAI transport (native /chat/completions)
+# --------------------------------------------------------------------------- #
+
+def _openai_url(config: LLMConfig) -> str:
+    base = (config.base_url or OPENAI_BASE).rstrip("/")
+    return f"{base}/chat/completions"
+
+
+def _openai_headers(config: LLMConfig) -> dict:
+    return {
+        "Authorization": f"Bearer {config.api_key}",
+        "Content-Type": "application/json",
+    }
+
+
+def _openai_complete(config, prompt, temperature, max_tokens, json_mode, timeout):
+    # OpenAI shares the OpenAI-compatible payload/error shape with OpenRouter.
+    payload = _openrouter_payload(config, prompt, temperature, max_tokens, False, json_mode)
+    resp = None
+    try:
+        resp = requests.post(
+            _openai_url(config),
+            headers=_openai_headers(config),
+            json=payload,
+            timeout=timeout,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"].get("content", "")
+    except Exception as exc:  # noqa: BLE001
+        _raise_openrouter(exc, resp)
+
+
+def _openai_stream(config, prompt, temperature, max_tokens, timeout):
+    payload = _openrouter_payload(config, prompt, temperature, max_tokens, True, False)
+    resp = None
     try:
         with requests.post(
-            url,
+            _openai_url(config),
+            headers=_openai_headers(config),
             json=payload,
             stream=True,
             timeout=timeout,
         ) as resp:
             if resp.status_code >= 400:
-                _raise_gemini(RuntimeError('bad status'), resp)
-                
+                _raise_openrouter(RuntimeError("bad status"), resp)
             for raw in resp.iter_lines():
                 if not raw:
                     continue
-                line = raw.decode('utf-8').strip()
-                if not line.startswith('data:'):
-                    continue
-                data = line[len('data:'):].strip()
-                if not data:
-                    continue
-                    
-                try:
-                    chunk = json.loads(data)
-                except json.JSONDecodeError:
-                    continue
-                    
-                try:
-                    text = chunk['candidates'][0]['content']['parts'][0]['text']
-                    if text:
-                        yield text
-                except (KeyError, IndexError):
-                    continue
-                    
-    except LLMError:
-        raise
-    except Exception as exc:
-        _raise_gemini(exc, resp)
-
-
-# --------------------------------------------------------------------------- #
-# OpenAI transport (Native)
-# --------------------------------------------------------------------------- #
-
-def _openai_url(config: LLMConfig) -> str:
-    base = (config.base_url or OPENAI_BASE).rstrip('/')
-    return f"{base}/chat/completions"
-
-def _openai_complete(config, prompt, temperature, max_tokens, json_mode, timeout):
-    payload = _openrouter_payload(config, prompt, temperature, max_tokens, False, json_mode)
-    headers = {
-        "Authorization": f"Bearer {config.api_key}",
-        "Content-Type": "application/json",
-    }
-    resp = None
-    try:
-        resp = requests.post(_openai_url(config), headers=headers, json=payload, timeout=timeout)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"].get("content", "")
-    except Exception as exc:
-        _raise_openrouter(exc, resp)
-
-def _openai_stream(config, prompt, temperature, max_tokens, timeout):
-    payload = _openrouter_payload(config, prompt, temperature, max_tokens, True, False)
-    headers = {
-        "Authorization": f"Bearer {config.api_key}",
-        "Content-Type": "application/json",
-    }
-    resp = None
-    try:
-        with requests.post(_openai_url(config), headers=headers, json=payload, stream=True, timeout=timeout) as resp:
-            if resp.status_code >= 400:
-                _raise_openrouter(RuntimeError("bad status"), resp)
-            for raw in resp.iter_lines():
-                if not raw: continue
                 line = raw.decode("utf-8").strip()
-                if not line.startswith("data:"): continue
-                data = line[len("data:")].strip()
-                if data == "[DONE]": break
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:"):].strip()
+                if data == "[DONE]":
+                    break
                 try:
                     delta = json.loads(data)["choices"][0]["delta"]
-                    token = delta.get("content")
-                    if token: yield token
                 except (json.JSONDecodeError, KeyError, IndexError):
                     continue
-    except LLMError: raise
-    except Exception as exc: _raise_openrouter(exc, resp)
+                token = delta.get("content")
+                if token:
+                    yield token
+    except LLMError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _raise_openrouter(exc, resp)
+
 
 # --------------------------------------------------------------------------- #
-# Anthropic transport (Native)
+# Anthropic transport (native /messages)
 # --------------------------------------------------------------------------- #
 
 def _anthropic_url(config: LLMConfig) -> str:
-    base = (config.base_url or ANTHROPIC_BASE).rstrip('/')
+    base = (config.base_url or ANTHROPIC_BASE).rstrip("/")
     return f"{base}/messages"
+
 
 def _anthropic_headers(config: LLMConfig) -> dict:
     return {
@@ -587,14 +599,16 @@ def _anthropic_headers(config: LLMConfig) -> dict:
         "content-type": "application/json",
     }
 
+
 def _anthropic_payload(config, prompt, temperature, max_tokens, stream):
     return {
         "model": config.model,
         "max_tokens": max_tokens,
         "temperature": temperature,
         "messages": [{"role": "user", "content": prompt}],
-        "stream": stream
+        "stream": stream,
     }
+
 
 def _raise_anthropic(exc: Exception, resp: Optional[requests.Response]) -> None:
     if resp is not None and resp.status_code == 401:
@@ -603,39 +617,60 @@ def _raise_anthropic(exc: Exception, resp: Optional[requests.Response]) -> None:
         raise LLMError("Anthropic rate limit hit (429). Slow down.")
     detail = ""
     if resp is not None:
-        try: detail = resp.json().get("error", {}).get("message", "")
-        except: detail = resp.text[:200] if resp.text else ""
+        try:
+            detail = resp.json().get("error", {}).get("message", "")
+        except Exception:  # noqa: BLE001
+            detail = resp.text[:200] if resp.text else ""
     raise LLMError(f"Anthropic error: {detail or exc}")
+
 
 def _anthropic_complete(config, prompt, temperature, max_tokens, json_mode, timeout):
     payload = _anthropic_payload(config, prompt, temperature, max_tokens, stream=False)
     resp = None
     try:
-        resp = requests.post(_anthropic_url(config), headers=_anthropic_headers(config), json=payload, timeout=timeout)
+        resp = requests.post(
+            _anthropic_url(config),
+            headers=_anthropic_headers(config),
+            json=payload,
+            timeout=timeout,
+        )
         resp.raise_for_status()
         return resp.json()["content"][0]["text"]
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         _raise_anthropic(exc, resp)
+
 
 def _anthropic_stream(config, prompt, temperature, max_tokens, timeout):
     payload = _anthropic_payload(config, prompt, temperature, max_tokens, stream=True)
     resp = None
     try:
-        with requests.post(_anthropic_url(config), headers=_anthropic_headers(config), json=payload, stream=True, timeout=timeout) as resp:
+        with requests.post(
+            _anthropic_url(config),
+            headers=_anthropic_headers(config),
+            json=payload,
+            stream=True,
+            timeout=timeout,
+        ) as resp:
             if resp.status_code >= 400:
                 _raise_anthropic(RuntimeError("bad status"), resp)
             for raw in resp.iter_lines():
-                if not raw: continue
+                if not raw:
+                    continue
                 line = raw.decode("utf-8").strip()
-                if not line.startswith("data:"): continue
-                data = line[len("data:")].strip()
-                if not data: continue
+                if not line.startswith("data:"):
+                    continue
+                data = line[len("data:"):].strip()
+                if not data:
+                    continue
                 try:
                     chunk = json.loads(data)
-                    if chunk.get("type") == "content_block_delta":
-                        token = chunk["delta"].get("text")
-                        if token: yield token
-                except (json.JSONDecodeError, KeyError):
+                except json.JSONDecodeError:
                     continue
-    except LLMError: raise
-    except Exception as exc: _raise_anthropic(exc, resp)
+                if chunk.get("type") == "content_block_delta":
+                    token = chunk.get("delta", {}).get("text")
+                    if token:
+                        yield token
+    except LLMError:
+        raise
+    except Exception as exc:  # noqa: BLE001
+        _raise_anthropic(exc, resp)

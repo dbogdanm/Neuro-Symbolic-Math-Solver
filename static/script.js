@@ -17,6 +17,15 @@
     anthropic: { apiKey: "", model: "claude-3-5-sonnet-20241022" },
   };
 
+  // Provider display metadata. `cloud` providers require a BYOK API key.
+  const PROVIDER_META = {
+    ollama:     { name: "Ollama",     cloud: false },
+    gemini:     { name: "Gemini",     cloud: true },
+    openai:     { name: "OpenAI",     cloud: true },
+    anthropic:  { name: "Anthropic",  cloud: true },
+    openrouter: { name: "OpenRouter", cloud: true },
+  };
+
   let settings = loadSettings();
   let busy = false;
   let modelsLoaded = false;
@@ -88,19 +97,24 @@
     if (settings.provider === "anthropic") return settings.anthropic.model;
     return settings.ollama.model;
   }
+  function currentApiKey() {
+    const cfg = settings[settings.provider];
+    return cfg && cfg.apiKey ? cfg.apiKey.trim() : "";
+  }
+  // True when the active cloud provider is missing its BYOK key.
+  function providerNeedsKey() {
+    const meta = PROVIDER_META[settings.provider];
+    return !!(meta && meta.cloud) && !currentApiKey();
+  }
 
   // ----------------------------------------------------------------- chrome UI
   function refreshProviderPill() {
     const pill = $("provider-pill");
-    const isOR = settings.provider === "openrouter";
-    const isGemini = settings.provider === "gemini";
-    const noKey = (isOR && !settings.openrouter.apiKey.trim()) || (isGemini && !settings.gemini.apiKey.trim());
-    pill.classList.toggle("is-openrouter", isOR || isGemini);
+    const meta = PROVIDER_META[settings.provider] || PROVIDER_META.ollama;
+    const noKey = providerNeedsKey();
+    pill.classList.toggle("is-openrouter", meta.cloud);
     pill.classList.toggle("is-nokey", noKey);
-    let name = "Ollama";
-    if (isOR) name = "OpenRouter";
-    if (isGemini) name = "Gemini";
-    $("provider-name").textContent = name;
+    $("provider-name").textContent = meta.name;
     $("provider-model").textContent = noKey ? "add your key →" : currentModelLabel();
   }
 
@@ -250,13 +264,9 @@
     const prompt = ta.value.trim();
     if (!prompt) return;
 
-    if (settings.provider === "openrouter" && !settings.openrouter.apiKey.trim()) {
-      toast("Add your OpenRouter key first — it stays in your browser.", "err");
-      openSettings();
-      return;
-    }
-    if (settings.provider === "gemini" && !settings.gemini.apiKey.trim()) {
-      toast("Add your Gemini API key first — it stays in your browser.", "err");
+    if (providerNeedsKey()) {
+      const meta = PROVIDER_META[settings.provider];
+      toast(`Add your ${meta.name} key first — it stays in your browser.`, "err");
       openSettings();
       return;
     }
