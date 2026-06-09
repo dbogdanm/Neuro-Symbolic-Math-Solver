@@ -66,7 +66,9 @@ def find_hints(query: str, n_results: int = 2, max_distance: float = 1.2) -> str
         results = _get_collection().query(query_texts=[query], n_results=n_results)
 
         hints = []
-        for distance, metadata in zip(results["distances"][0], results["metadatas"][0]):
+        for distance, metadata in zip(
+            results["distances"][0], results["metadatas"][0], strict=True
+        ):
             # 'id_regula' is the metadata key used by older persisted DBs.
             rule_id = metadata.get("rule_id") or metadata.get("id_regula", "UNKNOWN_ID")
             hint = metadata.get("hint", "")

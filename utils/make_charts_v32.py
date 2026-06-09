@@ -14,6 +14,7 @@ Usage (from the project root):
 import os
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -84,7 +85,7 @@ def chart_head_to_head():
     colors = ["#9e9e9e", "#5c6bc0", "#00897b"]
 
     fig, axes = plt.subplots(1, 2, figsize=(11.5, 5.0), sharey=True)
-    for ax, (key, title) in zip(axes, problems):
+    for ax, (key, title) in zip(axes, problems, strict=True):
         xs, heights, bar_colors, outcomes, notes = [], [], [], [], []
         for i, sys_name in enumerate(systems):
             secs, outcome, note = HEAD_TO_HEAD[sys_name][key]
@@ -96,7 +97,7 @@ def chart_head_to_head():
             outcomes.append(outcome)
             notes.append(note or "")
         bars = ax.bar([systems[i] for i in xs], heights, color=bar_colors, width=0.55)
-        for bar, outcome, note in zip(bars, outcomes, notes):
+        for bar, outcome, note in zip(bars, outcomes, notes, strict=True):
             color, text = OUTCOME_STYLE[outcome]
             suffix = "+" if outcome == "dnf" else ""
             ax.annotate(
@@ -125,7 +126,7 @@ def chart_sandbox():
     bars = ax.barh(names, vals, color=["#5c6bc0", "#00897b"], height=0.5)
     ax.set_xscale("log")
     ax.set_xlabel("overhead per PoT execution (s, log scale)")
-    for bar, v in zip(bars, vals):
+    for bar, v in zip(bars, vals, strict=True):
         ax.annotate(f" {v*1000:.0f} ms" if v < 0.01 else f" {v:.2f} s",
                     (v, bar.get_y() + bar.get_height() / 2),
                     va="center", fontsize=10, fontweight="bold")
@@ -151,7 +152,8 @@ def chart_retrieval():
     ax.annotate("  measured: 0.12 s retrieval, zero LLM calls",
                 (0.02, bars[1].get_y() + bars[1].get_height() / 2),
                 va="center", fontsize=10, fontweight="bold", color="#00695c")
-    ax.annotate("  observed stalling >600 s when the reasoning\n  model rabbit-holed on the classification",
+    ax.annotate("  observed stalling >600 s when the reasoning\n"
+                "  model rabbit-holed on the classification",
                 (1.02, bars[0].get_y() + bars[0].get_height() / 2),
                 va="center", fontsize=9, color="#3949ab")
     ax.set_title(

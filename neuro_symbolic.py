@@ -122,9 +122,12 @@ def extract_problem_type(problem: str, llm: LLMConfig,
                          ui_callback: Optional[Callable[[str], None]] = None) -> str:
     _log("  [RAG] Extracting problem type...", ui_callback)
     prompt = (
-        "You are a math problem classifier. Describe the MATHEMATICAL TYPE in 1-2 VERY SHORT sentences.\n"
-        "Focus on structures (sequences, subsets), techniques (recurrence, combinatorics), and domain.\n"
-        "Do NOT attempt to solve the problem. Output ONLY the type description. No explanations.\n\n"
+        "You are a math problem classifier. Describe the MATHEMATICAL TYPE in "
+        "1-2 VERY SHORT sentences.\n"
+        "Focus on structures (sequences, subsets), techniques (recurrence, "
+        "combinatorics), and domain.\n"
+        "Do NOT attempt to solve the problem. Output ONLY the type "
+        "description. No explanations.\n\n"
         f"Problem: {problem}"
     )
     # Token cap: reasoning models can rabbit-hole into *solving* the problem
@@ -184,7 +187,8 @@ def step1_semantic_parser(problem: str, llm: LLMConfig,
                           ui_callback: Optional[Callable[[str], None]] = None) -> str:
     _log("  [NS] Stage 1: Semantic Parsing...", ui_callback)
     prompt = (
-        "Respond ONLY with a valid JSON object extracting: variables, known_values, constraints, and goal.\n"
+        "Respond ONLY with a valid JSON object extracting: variables, "
+        "known_values, constraints, and goal.\n"
         f"Problem: {problem}"
     )
     parsed_dict = call_llm_json(prompt, llm=llm, ui_callback=ui_callback)
@@ -305,7 +309,7 @@ class _SandboxWorker:
                 status, payload = self._out_q.get(timeout=timeout)
             except queue.Empty:
                 self._kill()
-                raise TimeoutError("Execution timed out.")
+                raise TimeoutError("Execution timed out.") from None
 
             if status == "ERROR":
                 raise SandboxError(payload)
@@ -345,7 +349,8 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
         future_parse = executor.submit(step1_semantic_parser, problem, llm, ui_callback)
 
         if not hint and future_hint is not None:
-            _log("  [NS] Stage 0: Retrieval (RAG + Web) running in parallel with Stage 1 (Parsing)...", ui_callback)
+            _log("  [NS] Stage 0: Retrieval (RAG + Web) running in parallel "
+                 "with Stage 1 (Parsing)...", ui_callback)
             hint = future_hint.result()
 
         parsed_structure = future_parse.result()
@@ -361,7 +366,8 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
                 raw_pot = step2_pot_generator(problem, parsed_structure, llm=llm,
                                               hint=hint, ui_callback=ui_callback)
             else:
-                _log(f"  [NS] Stage 2: Self-Correction Attempt {attempt}/{max_retries}...", ui_callback)
+                _log(f"  [NS] Stage 2: Self-Correction Attempt "
+                     f"{attempt}/{max_retries}...", ui_callback)
                 error_prompt = (
                     "Your previous Python SymPy code failed with the following error:\n"
                     f"{last_error}\n\n"
