@@ -58,8 +58,11 @@ def main():
     print("[OK] respawn after timeout")
 
     # --- direct embedding RAG (no LLM call) ----------------------------------
-    if ns.RAG_AVAILABLE:
+    try:
         from rules_base import find_hints
+    except Exception:
+        find_hints = None
+    if find_hints is not None:
         t0 = time.time()
         h1 = find_hints("Converting a point from Cartesian coordinates to polar coordinates.")
         assert h1, "expected a direct match on a near-exact description"

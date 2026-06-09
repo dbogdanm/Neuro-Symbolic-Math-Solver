@@ -15,7 +15,13 @@ def sandbox_loop(in_q, out_q):
 
     Protocol: receives a code string (or ``None`` to shut down), replies with
     ``("SUCCESS", final_result)`` or ``("ERROR", message)``.
+
+    See the SECURITY MODEL note in :mod:`neuro_symbolic`: this is process
+    isolation for untrusted LLM-generated code, not a security sandbox.
     """
+    import itertools
+    import math
+
     import sympy as sp  # paid once per worker lifetime
 
     while True:
@@ -23,7 +29,8 @@ def sandbox_loop(in_q, out_q):
         if code is None:
             break
 
-        namespace = {"sp": sp, "sympy": sp}
+        # Pre-bind common libraries so generated code can use them without imports.
+        namespace = {"sp": sp, "sympy": sp, "math": math, "itertools": itertools}
         try:
             exec(code, namespace)  # noqa: S102 - isolated worker subprocess
             result = namespace.get("final_result")

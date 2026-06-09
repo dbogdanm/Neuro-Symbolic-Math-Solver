@@ -1,21 +1,38 @@
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Virtualenvs
 .venv/
 env/
 venv/
 ENV/
-env.bak/
-venv.bak/
-.pytest_cache/
+
+# Tooling / IDE
 .idea/
 .vscode/
 *.spec
 build/
 dist/
 node_modules/
+
+# VCS & CI (not needed inside the image)
 .git/
 .gitignore
+.gitattributes
+.github/
+
+# Dev-only files
+tests/
+docs/
+Charts/
+.env
+requirements-dev.txt
+
+# Bulky / unneeded data formats (the ChromaDB store is intentionally kept)
 *.docx
 *.pdf
 *.xlsx

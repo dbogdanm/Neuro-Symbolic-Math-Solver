@@ -13,8 +13,8 @@ import queue
 import threading
 import time
 
-from flask import Flask, Response, render_template, request, stream_with_context
 import requests
+from flask import Flask, Response, render_template, request, stream_with_context
 
 import llm as llm_layer
 from llm import LLMConfig, LLMError
@@ -24,7 +24,8 @@ from web_search import get_web_hint
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-DEBUG = os.environ.get("FLASK_DEBUG", "1") == "1"
+DEBUG = os.environ.get("FLASK_DEBUG", "0") == "1"
+HOST = os.environ.get("HOST", "127.0.0.1")
 PORT = int(os.environ.get("PORT", "5000"))
 
 
@@ -139,9 +140,11 @@ def web_rag_endpoint():
             "LIVE_SEARCH_DATA:\n"
             f"{context if context else 'No live data returned from the search engine.'}\n\n"
             "INSTRUCTIONS:\n"
-            f"- Treat {current_date} as today's date and the live data above as current and accurate.\n"
+            f"- Treat {current_date} as today's date and the live data above as "
+            "current and accurate.\n"
             "- Do not refuse based on a training cutoff; use the provided data to answer.\n"
-            "- If the data is insufficient, say so and give the last known state as historical context.\n"
+            "- If the data is insufficient, say so and give the last known state "
+            "as historical context.\n"
             "</SYSTEM_CONTEXT>\n\n"
             f"USER_REQUEST: {prompt}"
         )
@@ -205,4 +208,7 @@ def neuro_symbolic_endpoint():
 
 
 if __name__ == "__main__":
-    app.run(debug=DEBUG, port=PORT)
+    # threaded=True lets an SSE response stream while its pipeline worker thread
+    # runs. HOST defaults to localhost; set HOST=0.0.0.0 to expose the server
+    # (the Docker image does this).
+    app.run(host=HOST, port=PORT, debug=DEBUG, threaded=True)
