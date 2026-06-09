@@ -13,6 +13,7 @@ import hashlib
 import multiprocessing
 import concurrent.futures
 import queue
+import threading
 from typing import Callable, Optional
 
 import sympy as sp
@@ -20,9 +21,10 @@ import sympy as sp
 import llm as llm_layer
 from llm import LLMConfig
 from web_search import get_web_hint
+from sandbox_runner import sandbox_loop
 
 try:
-    from rules_base import find_hint
+    from rules_base import find_hints
     RAG_AVAILABLE = True
 except ImportError:
     RAG_AVAILABLE = False
@@ -65,7 +67,9 @@ def solve_simple_math(problem: str) -> str:
             expr = sp.sympify(f"({left}) - ({right})")
             sol = sp.solve(expr)
             return f"The solutions are: {sol}"
-        result = sp.sympify(clean_problem).evalf()
+        # Compare as plain Python floats: since SymPy 1.13, Float == Integer
+        # is structural (always False), which broke the integer formatting.
+        result = float(sp.sympify(clean_problem).evalf())
         if result == int(result):
             return str(int(result))
         return str(round(result, 6))
@@ -79,11 +83,13 @@ def solve_simple_math(problem: str) -> str:
 # --------------------------------------------------------------------------- #
 
 def call_llm(prompt: str, llm: LLMConfig, num_ctx: int = 4096,
+             max_tokens: Optional[int] = None,
              ui_callback: Optional[Callable[[str], None]] = None) -> str:
     _log(f"LOG: [LLM] Calling {llm.label}...", ui_callback)
     _log(f"PROMPT: {prompt}", ui_callback)
     try:
-        full_response = llm_layer.complete(llm, prompt, num_ctx=num_ctx)
+        full_response = llm_layer.complete(llm, prompt, num_ctx=num_ctx,
+                                           max_tokens=max_tokens)
         think_match = re.search(r'<think>(.*?)</think>', full_response, re.DOTALL)
         if think_match:
             _log(f"THINK: {think_match.group(1)}", ui_callback)
@@ -116,10 +122,13 @@ def extract_problem_type(problem: str, llm: LLMConfig,
     prompt = (
         "You are a math problem classifier. Describe the MATHEMATICAL TYPE in 1-2 VERY SHORT sentences.\n"
         "Focus on structures (sequences, subsets), techniques (recurrence, combinatorics), and domain.\n"
-        "Output ONLY the type description. No explanations.\n\n"
+        "Do NOT attempt to solve the problem. Output ONLY the type description. No explanations.\n\n"
         f"Problem: {problem}"
     )
-    tip = call_llm(prompt, llm=llm, num_ctx=2048, ui_callback=ui_callback)
+    # Token cap: reasoning models can rabbit-hole into *solving* the problem
+    # here. If the cap truncates the answer away, we degrade gracefully to
+    # "no hint" instead of stalling the whole pipeline for minutes.
+    tip = call_llm(prompt, llm=llm, num_ctx=2048, max_tokens=2048, ui_callback=ui_callback)
     tip = re.sub(r'<think>.*?</think>', '', tip, flags=re.DOTALL).strip()
     _log(f"  [RAG] Detected type: {tip}", ui_callback)
     return tip
@@ -130,18 +139,27 @@ def get_rag_hint(problem: str, llm: LLMConfig,
     if not RAG_AVAILABLE:
         return ""
 
+    # 1. Direct embedding retrieval with the raw problem text (Eq. 1 in the
+    #    paper: H = argmax cos(E(P), E(r_i))). No LLM round-trip needed.
+    hint = find_hints(problem)
+    if hint:
+        _log("LOG: [RAG] Internal hint found (direct embedding match).", ui_callback)
+        _log(f"PROMPT: {hint}", ui_callback)
+        return hint
+
+    # 2. Fallback: ask the LLM for a problem-type description, retry ChromaDB
+    #    with it (catches paraphrases the raw-text embedding missed).
     tip = extract_problem_type(problem, llm=llm, ui_callback=ui_callback)
     if not tip:
         return ""
 
-    # 1. Internal RAG (ChromaDB)
-    hint = find_hint(tip)
+    hint = find_hints(tip)
     if hint:
-        _log("LOG: [RAG] Internal hint found.", ui_callback)
+        _log("LOG: [RAG] Internal hint found (via problem-type match).", ui_callback)
         _log(f"PROMPT: {hint}", ui_callback)
         return hint
 
-    # 2. Web search fallback
+    # 3. Web search fallback
     _log("LOG: [RAG] No internal hint. Searching Web...", ui_callback)
     web_hint = get_web_hint(tip)
     if web_hint:
@@ -170,21 +188,24 @@ def step1_semantic_parser(problem: str, llm: LLMConfig,
     return "No structure detected."
 
 
-def step2_pot_generator(parsed_structure: str, llm: LLMConfig, hint: str = "",
+def step2_pot_generator(problem: str, parsed_structure: str, llm: LLMConfig, hint: str = "",
                         ui_callback: Optional[Callable[[str], None]] = None) -> str:
     cache_key = hashlib.md5(
-        f"{llm.label}||{parsed_structure}||{hint}".encode()
+        f"{llm.label}||{problem}||{parsed_structure}||{hint}".encode()
     ).hexdigest()
     if cache_key in _pot_cache:
         _log("  [NS] Stage 2: Cache hit.", ui_callback)
         return _pot_cache[cache_key]
 
     bloc_hint = f"\nHINTS/SEARCH RESULTS:\n{hint}\n" if hint else ""
+    # P ⊕ H: the original problem statement is always included alongside the
+    # parsed structure, so a lossy/failed parse cannot silently drop
+    # constraints (the "semantic bottleneck" failure mode).
     prompt = (
         "You are an expert Python SymPy programmer. Think step by step in <think></think>.\n"
         "Then output ONLY one python code block using SymPy.\n"
         "The code MUST contain: final_result = <value>\n"
-        f"{bloc_hint}\nStructure:\n{parsed_structure}"
+        f"{bloc_hint}\nProblem:\n{problem}\n\nExtracted structure:\n{parsed_structure}"
     )
     _log("  [NS] Stage 2: Generating Program-of-Thought...", ui_callback)
     result = call_llm(prompt, llm=llm, num_ctx=16384, ui_callback=ui_callback)
@@ -209,34 +230,71 @@ def step3_code_validator(code_response: str,
 
 
 # --------------------------------------------------------------------------- #
-# Sandboxed execution
+# Sandboxed execution (persistent warm worker)
 # --------------------------------------------------------------------------- #
 
-def _worker_exec(code, q):
-    namespace = {"sp": sp, "sympy": sp}
-    try:
-        exec(code, namespace)  # noqa: S102 - runs in an isolated subprocess
-        q.put(("SUCCESS", namespace.get('final_result')))
-    except Exception as e:
-        q.put(("ERROR", str(e)))
+class _SandboxWorker:
+    """A single long-lived subprocess that executes PoT scripts.
+
+    Spawning a fresh process per execution costs several seconds on Windows
+    (the child re-imports SymPy every time). Keeping one warm worker pays that
+    import cost once; a hung script is handled by killing and respawning.
+    """
+
+    def __init__(self):
+        self._proc = None
+        self._in_q = None
+        self._out_q = None
+        self._lock = threading.Lock()
+
+    def _spawn(self):
+        self._in_q = multiprocessing.Queue()
+        self._out_q = multiprocessing.Queue()
+        self._proc = multiprocessing.Process(
+            target=sandbox_loop, args=(self._in_q, self._out_q), daemon=True
+        )
+        self._proc.start()
+
+    def _kill(self):
+        if self._proc is not None:
+            self._proc.terminate()
+            self._proc.join()
+        self._proc = None
+
+    def warm_up(self):
+        """Start the worker in the background (non-blocking, idempotent)."""
+        with self._lock:
+            if self._proc is None or not self._proc.is_alive():
+                self._spawn()
+
+    def execute(self, code: str, timeout: int = 120):
+        with self._lock:
+            if self._proc is None or not self._proc.is_alive():
+                self._spawn()
+            # Drain any stale reply left behind by a previous crash/timeout.
+            while True:
+                try:
+                    self._out_q.get_nowait()
+                except queue.Empty:
+                    break
+
+            self._in_q.put(code)
+            try:
+                status, payload = self._out_q.get(timeout=timeout)
+            except queue.Empty:
+                self._kill()
+                raise TimeoutError("Execution timed out.")
+
+            if status == "ERROR":
+                raise RuntimeError(payload)
+            return payload
+
+
+_sandbox = _SandboxWorker()
 
 
 def execute_code_with_timeout(python_code: str, timeout: int = 120):
-    q = multiprocessing.Queue()
-    p = multiprocessing.Process(target=_worker_exec, args=(python_code, q))
-    p.start()
-    p.join(timeout)
-    if p.is_alive():
-        p.terminate()
-        p.join()
-        raise TimeoutError("Execution timed out.")
-    try:
-        status, result = q.get_nowait()
-        if status == "ERROR":
-            raise Exception(result)
-        return result
-    except queue.Empty:
-        raise Exception("Code failed to produce a result.")
+    return _sandbox.execute(python_code, timeout=timeout)
 
 
 # --------------------------------------------------------------------------- #
@@ -253,6 +311,10 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
         if result:
             _log(f"  [NS] Solved via Fast Path: {result}", ui_callback)
             return result
+
+    # Warm the SymPy sandbox now: the subprocess boots while the LLM stages
+    # below are generating, so execution later costs ~0 extra.
+    _sandbox.warm_up()
 
     # Stage 0 & 1: RAG retrieval runs in parallel with semantic parsing.
     parsed_structure = ""
@@ -274,7 +336,8 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
     for attempt in range(1, max_retries + 1):
         try:
             if attempt == 1:
-                raw_pot = step2_pot_generator(parsed_structure, llm=llm, hint=hint, ui_callback=ui_callback)
+                raw_pot = step2_pot_generator(problem, parsed_structure, llm=llm,
+                                              hint=hint, ui_callback=ui_callback)
             else:
                 _log(f"  [NS] Stage 2: Self-Correction Attempt {attempt}/{max_retries}...", ui_callback)
                 error_prompt = (
@@ -282,7 +345,8 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
                     f"{last_error}\n\n"
                     "Please analyze the error and provide a CORRECTED Python SymPy code block.\n"
                     "Remember, the code MUST contain exactly: final_result = <value>\n"
-                    "Do NOT repeat the same mistake. Output ONLY the fixed python code block."
+                    "Do NOT repeat the same mistake. Output ONLY the fixed python code block.\n\n"
+                    f"Original problem:\n{problem}"
                 )
                 raw_pot = call_llm(error_prompt + "\n\nOriginal Code:\n" + raw_pot,
                                    llm=llm, num_ctx=8192, ui_callback=ui_callback)

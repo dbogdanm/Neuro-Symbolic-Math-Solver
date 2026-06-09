@@ -173,34 +173,40 @@ def complete(
     *,
     temperature: float = 0.3,
     num_ctx: int = 4096,
-    max_tokens: int = 8192,
+    max_tokens: Optional[int] = None,
     json_mode: bool = False,
     timeout: int = 600,
 ) -> str:
     """Return the full model response as a string (blocking).
 
-    For OpenRouter reasoning models, any ``reasoning`` field is folded into a
-    leading ``<think>...</think>`` block so downstream parsing stays uniform.
+    For reasoning models (OpenRouter ``reasoning``, Ollama ``thinking``), the
+    reasoning is folded into a leading ``<think>...</think>`` block so
+    downstream parsing stays uniform.
+
+    ``max_tokens`` is optional: cloud providers fall back to 8192; Ollama is
+    left uncapped unless a value is given (reasoning models can spend more
+    than any fixed budget on thinking, which would truncate the answer away).
     """
     config.require_ready()
+    cloud_max = max_tokens or 8192
     if config.provider == "openrouter":
         return _openrouter_complete(
-            config, prompt, temperature, max_tokens, json_mode, timeout
+            config, prompt, temperature, cloud_max, json_mode, timeout
         )
     if config.provider == "gemini":
         return _gemini_complete(
-            config, prompt, temperature, max_tokens, json_mode, timeout
+            config, prompt, temperature, cloud_max, json_mode, timeout
         )
     if config.provider == "openai":
         return _openai_complete(
-            config, prompt, temperature, max_tokens, json_mode, timeout
+            config, prompt, temperature, cloud_max, json_mode, timeout
         )
     if config.provider == "anthropic":
         return _anthropic_complete(
-            config, prompt, temperature, max_tokens, json_mode, timeout
+            config, prompt, temperature, cloud_max, json_mode, timeout
         )
     return _ollama_complete(
-        config, prompt, temperature, num_ctx, json_mode, timeout
+        config, prompt, temperature, num_ctx, max_tokens, json_mode, timeout
     )
 
 
@@ -210,26 +216,28 @@ def stream(
     *,
     temperature: float = 0.3,
     num_ctx: int = 16384,
-    max_tokens: int = 8192,
+    max_tokens: Optional[int] = None,
     timeout: int = 400,
 ) -> Iterator[str]:
     """Yield response tokens as they arrive.
 
-    Reasoning deltas (OpenRouter) are wrapped in synthetic ``<think>``/
-    ``</think>`` markers so the frontend's reasoning panel works for every
-    provider.
+    Reasoning deltas (OpenRouter ``reasoning``, Ollama ``thinking``) are
+    wrapped in synthetic ``<think>``/``</think>`` markers so the frontend's
+    reasoning panel works for every provider. ``max_tokens`` is optional:
+    cloud providers fall back to 8192, Ollama stays uncapped unless given.
     """
     config.require_ready()
+    cloud_max = max_tokens or 8192
     if config.provider == "openrouter":
-        yield from _openrouter_stream(config, prompt, temperature, max_tokens, timeout)
+        yield from _openrouter_stream(config, prompt, temperature, cloud_max, timeout)
     elif config.provider == "gemini":
-        yield from _gemini_stream(config, prompt, temperature, max_tokens, timeout)
+        yield from _gemini_stream(config, prompt, temperature, cloud_max, timeout)
     elif config.provider == "openai":
-        yield from _openai_stream(config, prompt, temperature, max_tokens, timeout)
+        yield from _openai_stream(config, prompt, temperature, cloud_max, timeout)
     elif config.provider == "anthropic":
-        yield from _anthropic_stream(config, prompt, temperature, max_tokens, timeout)
+        yield from _anthropic_stream(config, prompt, temperature, cloud_max, timeout)
     else:
-        yield from _ollama_stream(config, prompt, temperature, num_ctx, timeout)
+        yield from _ollama_stream(config, prompt, temperature, num_ctx, max_tokens, timeout)
 
 
 # --------------------------------------------------------------------------- #
@@ -241,19 +249,28 @@ def _ollama_url(config: LLMConfig) -> str:
     return f"{base}/api/generate"
 
 
-def _ollama_complete(config, prompt, temperature, num_ctx, json_mode, timeout) -> str:
+def _ollama_complete(config, prompt, temperature, num_ctx, max_tokens, json_mode, timeout) -> str:
+    options = {"temperature": temperature, "num_ctx": num_ctx}
+    if max_tokens:
+        options["num_predict"] = max_tokens
     payload = {
         "model": config.model,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": temperature, "num_ctx": num_ctx},
+        "options": options,
     }
     if json_mode:
         payload["format"] = "json"
     try:
         resp = requests.post(_ollama_url(config), json=payload, timeout=timeout)
         resp.raise_for_status()
-        return resp.json().get("response", "")
+        data = resp.json()
+        content = data.get("response", "")
+        # Newer Ollama versions put reasoning in a separate "thinking" field.
+        thinking = data.get("thinking") or ""
+        if thinking and not json_mode:
+            return f"<think>{thinking}</think>{content}"
+        return content
     except requests.exceptions.ConnectionError as exc:
         raise LLMError(
             f"Cannot reach Ollama at {config.base_url or DEFAULT_OLLAMA_BASE}. "
@@ -263,13 +280,17 @@ def _ollama_complete(config, prompt, temperature, num_ctx, json_mode, timeout) -
         raise LLMError(f"Ollama error: {exc}") from exc
 
 
-def _ollama_stream(config, prompt, temperature, num_ctx, timeout) -> Iterator[str]:
+def _ollama_stream(config, prompt, temperature, num_ctx, max_tokens, timeout) -> Iterator[str]:
+    options = {"temperature": temperature, "num_ctx": num_ctx}
+    if max_tokens:
+        options["num_predict"] = max_tokens
     payload = {
         "model": config.model,
         "prompt": prompt,
         "stream": True,
-        "options": {"temperature": temperature, "num_ctx": num_ctx},
+        "options": options,
     }
+    think_open = False
     try:
         with requests.post(
             _ollama_url(config), json=payload, stream=True, timeout=timeout
@@ -282,11 +303,23 @@ def _ollama_stream(config, prompt, temperature, num_ctx, timeout) -> Iterator[st
                     chunk = json.loads(line.decode("utf-8"))
                 except json.JSONDecodeError:
                     continue
+                # Newer Ollama: reasoning arrives as "thinking" deltas.
+                thinking = chunk.get("thinking")
+                if thinking:
+                    if not think_open:
+                        yield "<think>"
+                        think_open = True
+                    yield thinking
                 token = chunk.get("response", "")
                 if token:
+                    if think_open:
+                        yield "</think>"
+                        think_open = False
                     yield token
                 if chunk.get("done"):
                     break
+            if think_open:  # safety: never leave a think block open
+                yield "</think>"
     except requests.exceptions.ConnectionError as exc:
         raise LLMError(
             f"Cannot reach Ollama at {config.base_url or DEFAULT_OLLAMA_BASE}. "
@@ -415,7 +448,7 @@ def _openrouter_stream(config, prompt, temperature, max_tokens, timeout):
         raise
     except Exception as exc:  # noqa: BLE001
         _raise_openrouter(exc, resp)
-\
+
 # --------------------------------------------------------------------------- #
 # Gemini transport (Google AI Studio)
 # --------------------------------------------------------------------------- #
@@ -561,7 +594,7 @@ def _openai_stream(config, prompt, temperature, max_tokens, timeout):
                 if not raw: continue
                 line = raw.decode("utf-8").strip()
                 if not line.startswith("data:"): continue
-                data = line[len("data:")].strip()
+                data = line[len("data:"):].strip()
                 if data == "[DONE]": break
                 try:
                     delta = json.loads(data)["choices"][0]["delta"]
@@ -628,7 +661,7 @@ def _anthropic_stream(config, prompt, temperature, max_tokens, timeout):
                 if not raw: continue
                 line = raw.decode("utf-8").strip()
                 if not line.startswith("data:"): continue
-                data = line[len("data:")].strip()
+                data = line[len("data:"):].strip()
                 if not data: continue
                 try:
                     chunk = json.loads(data)

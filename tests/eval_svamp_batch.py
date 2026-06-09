@@ -6,8 +6,10 @@ import time
 # Add parent directory to path to import neuro_symbolic
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from neuro_symbolic import run_neuro_symbolic_pipeline
+from llm import LLMConfig
 
-def evaluate_svamp(filepath, limit=20, model="deepseek-r1:8b"):
+def evaluate_svamp(filepath, limit=20, model="deepseek-r1:8b", provider="ollama"):
+    cfg = LLMConfig(provider=provider, model=model)
     with open(filepath, 'r', encoding='utf-8') as f:
         data = json.load(f)
         
@@ -32,7 +34,7 @@ def evaluate_svamp(filepath, limit=20, model="deepseek-r1:8b"):
         try:
             # We pass a dummy ui_callback that does nothing to keep the console clean
             # Actually, standard print inside _log will still output. We can redirect stdout temporarily or just let it print
-            result_str = run_neuro_symbolic_pipeline(problem_text, model, ui_callback=lambda x: None)
+            result_str = run_neuro_symbolic_pipeline(problem_text, cfg, ui_callback=lambda x: None)
             
             # Try to parse the result as float
             try:

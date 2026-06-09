@@ -5,8 +5,10 @@ from math_rules import MATH_RULES
 client = chromadb.PersistentClient(path="./chroma_db_reguli")
 
 
-
-collection = client.get_or_create_collection(name="reguli_matematice")
+# "_en" collection: math_rules.py was translated to English (matching the
+# English benchmarks), so the English corpus lives in its own collection.
+# The legacy Romanian "reguli_matematice" collection is left untouched.
+collection = client.get_or_create_collection(name="reguli_matematice_en")
 
 
 def populate_database():
@@ -40,37 +42,50 @@ def populate_database():
 populate_database()
 
 
-def find_hint(problem_type: str, max_distance: float = 1.2) -> str:
+def _safe_print(msg: str) -> None:
+    """Print that survives legacy Windows console encodings (cp1252)."""
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("ascii", "backslashreplace").decode("ascii"))
+
+
+def find_hints(query: str, n_results: int = 2, max_distance: float = 1.2) -> str:
     """
-    Searches for the most relevant hint based on the problem description.
-    Returns the hint if the semantic distance is below the threshold, otherwise returns an empty string,
-    but prints what it found in the console for debugging.
+    Retrieves the top-N most relevant hints by embedding similarity (Eq. 1 in
+    the paper: H = argmax cos(E(P), E(r_i))). Hints whose semantic distance is
+    above the threshold are discarded; matches are joined into a single block.
     """
-    if not problem_type or problem_type.strip() == "":
+    if not query or query.strip() == "":
         return ""
 
     try:
         results = collection.query(
-            query_texts=[problem_type],
-            n_results=1
+            query_texts=[query],
+            n_results=n_results
         )
 
-        
-        distance = results['distances'][0][0]
-        found_metadata = results['metadatas'][0][0]
-        rule_id = found_metadata.get('rule_id', 'UNKNOWN_ID')
-        found_hint = found_metadata.get('hint', 'NO_HINT')
+        hints = []
+        for distance, metadata in zip(results['distances'][0], results['metadatas'][0]):
+            # 'id_regula' is the metadata key used by older persisted DBs.
+            rule_id = metadata.get('rule_id') or metadata.get('id_regula', 'UNKNOWN_ID')
+            found_hint = metadata.get('hint', 'NO_HINT')
 
-        if distance < max_distance:
-            print(f"    [Chroma Match] Success! Rule ID: {rule_id} (Distance: {distance:.2f})")
-            return found_hint
-        else:
-            print(f"    [Chroma Miss] Distance above threshold ({distance:.2f} > {max_distance}). Ignoring.")
-            
-            print(f"    [DEBUG Chroma] The rule it wanted to choose was ID: '{rule_id}'")
-            print(f"    [DEBUG Chroma] Rejected hint: {found_hint[:200]}...")  
-            return ""
+            if distance < max_distance:
+                _safe_print(f"    [Chroma Match] Success! Rule ID: {rule_id} (Distance: {distance:.2f})")
+                hints.append(found_hint)
+            else:
+                _safe_print(f"    [Chroma Miss] Distance above threshold ({distance:.2f} > {max_distance}). Ignoring.")
+                _safe_print(f"    [DEBUG Chroma] The rule it wanted to choose was ID: '{rule_id}'")
+                _safe_print(f"    [DEBUG Chroma] Rejected hint: {found_hint[:200]}...")
+
+        return "\n\n".join(hints)
 
     except Exception as e:
         print(f"[ChromaDB Error] Could not query the database: {e}")
         return ""
+
+
+def find_hint(problem_type: str, max_distance: float = 1.2) -> str:
+    """Backwards-compatible single-hint lookup."""
+    return find_hints(problem_type, n_results=1, max_distance=max_distance)
