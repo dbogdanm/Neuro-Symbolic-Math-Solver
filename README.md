@@ -35,7 +35,7 @@ Developed in the context of my **KES 2026 submission**, the system explores hybr
 
 **Version 3.1.0 Update (Bring Your Own Key):** The reasoning core is now provider-agnostic. A unified LLM layer routes every call to either a **local Ollama** model (free, no key) or **OpenRouter** (300+ frontier and open models behind a single key). The platform ships with a redesigned *Aurora* interface — a frosted-glass, neon-accented workspace with a live neuro-symbolic pipeline visualization and a built-in **BYOK** settings panel. **API keys never touch the server**: they live in the browser's `localStorage` and are forwarded straight to the provider per request.
 
-**Version 3.2.0 Update (Pipeline Optimization & Paper Alignment):** The neuro-symbolic core was profiled end-to-end and optimized for latency and robustness, bringing the implementation in line with the equations of the KES 2026 paper:
+**Version 3.2.0 Update (Pipeline Optimization & Paper Alignment):** The neuro-symbolic core was profiled end-to-end and optimized for latency and robustness.
 
 * **Direct-embedding RAG (Eq. 1):** the vector DB is now queried directly with the problem-text embedding — zero LLM round-trips in the retrieval hot path (measured 0.12 s on a knowledge-base hit). The LLM problem-type classifier survives only as a *token-capped* fallback on a miss, so a reasoning model can no longer stall the stage by rabbit-holing (observed >600 s pre-fix).
 * **Persistent warm SymPy sandbox:** PoT scripts now execute in a long-lived worker process that is pre-warmed in parallel with the LLM stages (~1 ms per execution vs ~0.36 s for a fresh process spawn, paid on every self-correction attempt). Hung scripts are killed and the worker respawns transparently.
