@@ -16,6 +16,11 @@ node_modules/
 *.xlsx
 *.csv
 *.jsonl
+# benchmark harness: keep datasets + final results, ignore per-problem debug logs
+!tests/datasets/*.jsonl
+!tests/results/overnight_results.jsonl
+tests/results/logs/
+tests/results/tmp_*
 # Keep the RAG database but maybe not the actual sqlite if it's too big, 
 # though for this project it's probably needed.
 # chroma_db_reguli/

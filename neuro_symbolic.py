@@ -149,7 +149,10 @@ def get_rag_hint(problem: str, llm: LLMConfig,
 
     # 1. Direct embedding retrieval with the raw problem text (Eq. 1 in the
     #    paper: H = argmax cos(E(P), E(r_i))). No LLM round-trip needed.
-    hint = find_hints(problem)
+    #    Tighter threshold than the type-description fallback: word problems
+    #    are mutually similar as raw text, and a prescriptive hint from the
+    #    wrong rule actively poisons the PoT (observed on GSM8K at d≈1.0-1.2).
+    hint = find_hints(problem, max_distance=0.9)
     if hint:
         _log("LOG: [RAG] Internal hint found (direct embedding match).", ui_callback)
         _log(f"PROMPT: {hint}", ui_callback)

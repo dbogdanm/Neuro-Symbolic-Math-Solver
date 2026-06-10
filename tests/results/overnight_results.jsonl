@@ -1,0 +1,130 @@
+{"benchmark": "gsm8k", "id": "gsm8k_0", "status": "correct", "predicted": "18", "gold": "18", "elapsed": 17.6, "ts": "2026-06-10 01:49:09"}
+{"benchmark": "gsm8k", "id": "gsm8k_1", "status": "correct", "predicted": "3", "gold": "3", "elapsed": 38.7, "ts": "2026-06-10 01:49:48"}
+{"benchmark": "gsm8k", "id": "gsm8k_2", "status": "correct", "predicted": "70000.0", "gold": "70000", "elapsed": 46.9, "ts": "2026-06-10 01:50:35"}
+{"benchmark": "gsm8k", "id": "gsm8k_3", "status": "correct", "predicted": "540", "gold": "540", "elapsed": 28.6, "ts": "2026-06-10 01:51:04"}
+{"benchmark": "gsm8k", "id": "gsm8k_4", "status": "correct", "predicted": "20", "gold": "20", "elapsed": 28.8, "ts": "2026-06-10 01:51:33"}
+{"benchmark": "gsm8k", "id": "gsm8k_5", "status": "correct", "predicted": "64", "gold": "64", "elapsed": 50.4, "ts": "2026-06-10 01:52:23"}
+{"benchmark": "gsm8k", "id": "gsm8k_6", "status": "correct", "predicted": "260", "gold": "260", "elapsed": 24.5, "ts": "2026-06-10 01:52:48"}
+{"benchmark": "gsm8k", "id": "gsm8k_7", "status": "correct", "predicted": "160", "gold": "160", "elapsed": 37.8, "ts": "2026-06-10 01:56:23"}
+{"benchmark": "gsm8k", "id": "gsm8k_8", "status": "correct", "predicted": "45.0000000000000", "gold": "45", "elapsed": 102.1, "ts": "2026-06-10 01:58:06"}
+{"benchmark": "gsm8k", "id": "gsm8k_10", "status": "correct", "predicted": "366", "gold": "366", "elapsed": 61.0, "ts": "2026-06-10 01:59:16"}
+{"benchmark": "gsm8k", "id": "gsm8k_11", "status": "correct", "predicted": "694", "gold": "694", "elapsed": 13.3, "ts": "2026-06-10 01:59:30"}
+{"benchmark": "gsm8k", "id": "gsm8k_12", "status": "correct", "predicted": "13", "gold": "13", "elapsed": 67.5, "ts": "2026-06-10 02:00:38"}
+{"benchmark": "gsm8k", "id": "gsm8k_14", "status": "correct", "predicted": "60.0", "gold": "60", "elapsed": 51.7, "ts": "2026-06-10 02:11:32"}
+{"benchmark": "gsm8k", "id": "gsm8k_15", "status": "correct", "predicted": "125", "gold": "125", "elapsed": 46.3, "ts": "2026-06-10 02:12:19"}
+{"benchmark": "gsm8k", "id": "gsm8k_16", "status": "correct", "predicted": "230", "gold": "230", "elapsed": 84.8, "ts": "2026-06-10 02:13:44"}
+{"benchmark": "gsm8k", "id": "gsm8k_18", "status": "correct", "predicted": "7.0", "gold": "7", "elapsed": 24.8, "ts": "2026-06-10 02:14:21"}
+{"benchmark": "gsm8k", "id": "gsm8k_19", "status": "correct", "predicted": "6", "gold": "6", "elapsed": 11.2, "ts": "2026-06-10 02:14:32"}
+{"benchmark": "gsm8k", "id": "gsm8k_20", "status": "correct", "predicted": "15", "gold": "15", "elapsed": 52.4, "ts": "2026-06-10 02:15:26"}
+{"benchmark": "gsm8k", "id": "gsm8k_22", "status": "correct", "predicted": "7", "gold": "7", "elapsed": 57.4, "ts": "2026-06-10 02:17:05"}
+{"benchmark": "gsm8k", "id": "gsm8k_23", "status": "correct", "predicted": "8", "gold": "8", "elapsed": 19.3, "ts": "2026-06-10 02:17:25"}
+{"benchmark": "gsm8k", "id": "gsm8k_24", "status": "correct", "predicted": "26.0", "gold": "26", "elapsed": 18.8, "ts": "2026-06-10 02:17:44"}
+{"benchmark": "gsm8k", "id": "gsm8k_9", "status": "correct", "predicted": "460", "gold": "460", "elapsed": 33.4, "ts": "2026-06-10 02:25:28"}
+{"benchmark": "gsm8k", "id": "gsm8k_13", "status": "correct", "predicted": "18", "gold": "18", "elapsed": 51.3, "ts": "2026-06-10 02:26:20"}
+{"benchmark": "gsm8k", "id": "gsm8k_17", "status": "correct", "predicted": "57500", "gold": "57500", "elapsed": 17.5, "ts": "2026-06-10 02:26:38"}
+{"benchmark": "gsm8k", "id": "gsm8k_21", "status": "correct", "predicted": "14", "gold": "14", "elapsed": 40.2, "ts": "2026-06-10 02:27:19"}
+{"benchmark": "gsm8k", "id": "gsm8k_25", "status": "correct", "predicted": "2.00000000000000", "gold": "2", "elapsed": 65.2, "ts": "2026-06-10 02:28:25"}
+{"benchmark": "gsm8k", "id": "gsm8k_26", "status": "wrong", "predicted": "5", "gold": "243", "elapsed": 19.7, "ts": "2026-06-10 02:28:45"}
+{"benchmark": "gsm8k", "id": "gsm8k_27", "status": "correct", "predicted": "16.0000000000000", "gold": "16", "elapsed": 37.1, "ts": "2026-06-10 02:29:23"}
+{"benchmark": "gsm8k", "id": "gsm8k_28", "status": "correct", "predicted": "25", "gold": "25", "elapsed": 70.9, "ts": "2026-06-10 02:40:34"}
+{"benchmark": "gsm8k", "id": "gsm8k_29", "status": "correct", "predicted": "104", "gold": "104", "elapsed": 27.0, "ts": "2026-06-10 02:41:02"}
+{"benchmark": "gsm8k", "id": "gsm8k_30", "status": "wrong", "predicted": "", "gold": "109", "elapsed": 120.2, "ts": "2026-06-10 02:43:03"}
+{"benchmark": "gsm8k", "id": "gsm8k_31", "status": "correct", "predicted": "80", "gold": "80", "elapsed": 27.6, "ts": "2026-06-10 02:43:32"}
+{"benchmark": "gsm8k", "id": "gsm8k_32", "status": "correct", "predicted": "35.0", "gold": "35", "elapsed": 35.4, "ts": "2026-06-10 02:44:08"}
+{"benchmark": "gsm8k", "id": "gsm8k_33", "status": "correct", "predicted": "70", "gold": "70", "elapsed": 56.6, "ts": "2026-06-10 02:45:05"}
+{"benchmark": "gsm8k", "id": "gsm8k_34", "status": "correct", "predicted": "23", "gold": "23", "elapsed": 51.8, "ts": "2026-06-10 02:45:58"}
+{"benchmark": "gsm8k", "id": "gsm8k_35", "status": "correct", "predicted": "9.00000000000000", "gold": "9", "elapsed": 27.2, "ts": "2026-06-10 02:46:26"}
+{"benchmark": "gsm8k", "id": "gsm8k_36", "status": "correct", "predicted": "75", "gold": "75", "elapsed": 90.7, "ts": "2026-06-10 02:47:57"}
+{"benchmark": "gsm8k", "id": "gsm8k_37", "status": "correct", "predicted": "2", "gold": "2", "elapsed": 68.7, "ts": "2026-06-10 02:49:06"}
+{"benchmark": "gsm8k", "id": "gsm8k_38", "status": "correct", "predicted": "10", "gold": "10", "elapsed": 19.1, "ts": "2026-06-10 02:49:26"}
+{"benchmark": "gsm8k", "id": "gsm8k_39", "status": "correct", "predicted": "18.0000000000000", "gold": "18", "elapsed": 70.5, "ts": "2026-06-10 02:50:38"}
+{"benchmark": "gsm8k", "id": "gsm8k_40", "status": "correct", "predicted": "8", "gold": "8", "elapsed": 51.2, "ts": "2026-06-10 02:51:29"}
+{"benchmark": "gsm8k", "id": "gsm8k_41", "status": "wrong", "predicted": "1200", "gold": "200", "elapsed": 92.8, "ts": "2026-06-10 02:53:03"}
+{"benchmark": "gsm8k", "id": "gsm8k_42", "status": "correct", "predicted": "26", "gold": "26", "elapsed": 40.8, "ts": "2026-06-10 02:53:44"}
+{"benchmark": "gsm8k", "id": "gsm8k_43", "status": "correct", "predicted": "48.0000000000000", "gold": "48", "elapsed": 38.5, "ts": "2026-06-10 02:54:24"}
+{"benchmark": "gsm8k", "id": "gsm8k_44", "status": "correct", "predicted": "20", "gold": "20", "elapsed": 56.5, "ts": "2026-06-10 02:55:21"}
+{"benchmark": "gsm8k", "id": "gsm8k_45", "status": "correct", "predicted": "104", "gold": "104", "elapsed": 37.3, "ts": "2026-06-10 02:55:59"}
+{"benchmark": "gsm8k", "id": "gsm8k_46", "status": "correct", "predicted": "163", "gold": "163", "elapsed": 21.4, "ts": "2026-06-10 02:56:21"}
+{"benchmark": "gsm8k", "id": "gsm8k_47", "status": "correct", "predicted": "800.0", "gold": "800", "elapsed": 45.0, "ts": "2026-06-10 02:57:07"}
+{"benchmark": "gsm8k", "id": "gsm8k_48", "status": "correct", "predicted": "8", "gold": "8", "elapsed": 24.6, "ts": "2026-06-10 03:03:59"}
+{"benchmark": "gsm8k", "id": "gsm8k_49", "status": "correct", "predicted": "30", "gold": "30", "elapsed": 26.8, "ts": "2026-06-10 03:13:53"}
+{"benchmark": "math500", "id": "test/precalculus/807.json", "status": "correct", "predicted": "(3, pi/2)", "gold": "\\left( 3, \\frac{\\pi}{2} \\right)", "elapsed": 16.7, "ts": "2026-06-10 03:14:10"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/1994.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "p - q", "gold": "p - q", "elapsed": 31.2, "ts": "2026-06-10 03:18:42"}
+{"benchmark": "math500", "id": "test/algebra/2584.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "14/3", "gold": "\\frac{14}{3}", "elapsed": 35.7, "ts": "2026-06-10 03:19:19"}
+{"benchmark": "math500", "id": "test/number_theory/572.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "9", "gold": "9", "elapsed": 34.2, "ts": "2026-06-10 03:19:54"}
+{"benchmark": "math500", "id": "test/algebra/1349.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "Evelyn", "gold": "\\text{Evelyn}", "elapsed": 23.9, "ts": "2026-06-10 03:20:18"}
+{"benchmark": "math500", "id": "test/prealgebra/1622.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "42.0", "gold": "42", "elapsed": 24.5, "ts": "2026-06-10 03:20:44"}
+{"benchmark": "math500", "id": "test/number_theory/515.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "27", "gold": "27", "elapsed": 62.0, "ts": "2026-06-10 03:21:46"}
+{"benchmark": "math500", "id": "test/precalculus/927.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "90", "gold": "90^\\circ", "elapsed": 47.3, "ts": "2026-06-10 03:22:34"}
+{"benchmark": "math500", "id": "test/algebra/2036.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "3*sqrt(13)", "gold": "3\\sqrt{13}", "elapsed": 44.9, "ts": "2026-06-10 03:23:20"}
+{"benchmark": "math500", "id": "test/prealgebra/1139.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "4", "gold": "4", "elapsed": 657.6, "ts": "2026-06-10 03:34:18"}
+{"benchmark": "math500", "id": "test/number_theory/1032.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "2220", "gold": "2220", "elapsed": 601.6, "ts": "2026-06-10 03:44:20"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/1197.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "0.0535714285714199", "gold": "\\frac{3}{56}", "elapsed": 116.9, "ts": "2026-06-10 03:46:18"}
+{"benchmark": "math500", "id": "test/number_theory/737.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "284", "gold": "284", "elapsed": 92.9, "ts": "2026-06-10 03:47:52"}
+{"benchmark": "math500", "id": "test/geometry/248.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "5", "gold": "5", "elapsed": 7.7, "ts": "2026-06-10 03:48:00"}
+{"benchmark": "math500", "id": "test/precalculus/1303.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "7.14142842854285", "gold": "\\sqrt{51}", "elapsed": 73.4, "ts": "2026-06-10 03:49:14"}
+{"benchmark": "math500", "id": "test/precalculus/990.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "6 - 5*I", "gold": "6 - 5i", "elapsed": 50.3, "ts": "2026-06-10 03:50:05"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/134.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "-50", "gold": "-50", "elapsed": 37.5, "ts": "2026-06-10 03:50:43"}
+{"benchmark": "math500", "id": "test/precalculus/1199.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "pi", "gold": "\\pi", "elapsed": 116.6, "ts": "2026-06-10 03:52:40"}
+{"benchmark": "math500", "id": "test/geometry/434.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "28", "gold": "28", "elapsed": 102.6, "ts": "2026-06-10 03:54:24"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/1000.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "3", "gold": "3", "elapsed": 37.1, "ts": "2026-06-10 03:55:01"}
+{"benchmark": "math500", "id": "test/algebra/1098.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "6 + 9*I", "gold": "6+9i", "elapsed": 7.7, "ts": "2026-06-10 03:55:10"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/607.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "13535", "gold": "13535", "elapsed": 80.0, "ts": "2026-06-10 03:56:30"}
+{"benchmark": "math500", "id": "test/algebra/1837.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "0", "gold": "5", "elapsed": 39.5, "ts": "2026-06-10 03:57:10"}
+{"benchmark": "math500", "id": "test/algebra/2193.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "[5]", "gold": "x=5", "elapsed": 77.8, "ts": "2026-06-10 03:58:29"}
+{"benchmark": "math500", "id": "test/algebra/2427.json", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "10", "elapsed": 900.1, "ts": "2026-06-10 04:13:30"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/1388.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "-2.00000000000000, 1.00000000000000", "gold": "1,-2", "elapsed": 130.5, "ts": "2026-06-10 04:15:41"}
+{"benchmark": "math500", "id": "test/counting_and_probability/525.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "144", "gold": "144", "elapsed": 49.8, "ts": "2026-06-10 04:16:31"}
+{"benchmark": "math500", "id": "test/prealgebra/1840.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "78", "gold": "78", "elapsed": 21.5, "ts": "2026-06-10 04:16:53"}
+{"benchmark": "math500", "id": "test/precalculus/779.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "-2 + 7*I", "gold": "-2 + 7i", "elapsed": 14.4, "ts": "2026-06-10 04:17:08"}
+{"benchmark": "math500", "id": "test/counting_and_probability/666.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "336", "gold": "225", "elapsed": 79.6, "ts": "2026-06-10 04:18:29"}
+{"benchmark": "math500", "id": "test/number_theory/864.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "52", "gold": "52_8", "elapsed": 58.3, "ts": "2026-06-10 04:19:28"}
+{"benchmark": "math500", "id": "test/prealgebra/1302.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "11*sqrt(2)", "gold": "11\\sqrt2", "elapsed": 25.2, "ts": "2026-06-10 04:19:53"}
+{"benchmark": "math500", "id": "test/counting_and_probability/134.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "720", "gold": "720", "elapsed": 73.0, "ts": "2026-06-10 04:21:07"}
+{"benchmark": "math500", "id": "test/algebra/1072.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "243/625", "gold": "\\frac{243}{625}", "elapsed": 57.2, "ts": "2026-06-10 04:22:05"}
+{"benchmark": "math500", "id": "test/counting_and_probability/119.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "-125", "gold": "-125", "elapsed": 27.9, "ts": "2026-06-10 04:22:34"}
+{"benchmark": "math500", "id": "test/number_theory/627.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "3", "gold": "3", "elapsed": 54.4, "ts": "2026-06-10 04:23:29"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/428.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "[3, 5, 7]", "gold": "3, 5, 7", "elapsed": 67.9, "ts": "2026-06-10 04:24:37"}
+{"benchmark": "math500", "id": "test/geometry/967.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "72", "gold": "72", "elapsed": 633.3, "ts": "2026-06-10 04:35:11"}
+{"benchmark": "math500", "id": "test/algebra/24.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "2000.00000000000", "gold": "2000", "elapsed": 13.9, "ts": "2026-06-10 04:35:26"}
+{"benchmark": "math500", "id": "test/number_theory/45.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "23", "gold": "23", "elapsed": 107.9, "ts": "2026-06-10 04:37:14"}
+{"benchmark": "math500", "id": "test/prealgebra/930.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "12", "gold": "12", "elapsed": 9.1, "ts": "2026-06-10 04:37:24"}
+{"benchmark": "math500", "id": "test/geometry/627.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "17", "gold": "17", "elapsed": 69.8, "ts": "2026-06-10 04:38:34"}
+{"benchmark": "math500", "id": "test/algebra/2214.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "4", "gold": "4", "elapsed": 56.4, "ts": "2026-06-10 04:39:31"}
+{"benchmark": "math500", "id": "test/intermediate_algebra/1454.json", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "25 + 5*sqrt(34) + 5*sqrt(85)", "gold": "70 \\sqrt{2}", "elapsed": 176.0, "ts": "2026-06-10 04:42:28"}
+{"benchmark": "math500", "id": "test/prealgebra/1558.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "1.25", "gold": "1.25", "elapsed": 45.6, "ts": "2026-06-10 04:43:14"}
+{"benchmark": "math500", "id": "test/geometry/178.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "2", "gold": "2", "elapsed": 85.2, "ts": "2026-06-10 04:44:40"}
+{"benchmark": "math500", "id": "test/precalculus/285.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "6", "gold": "6", "elapsed": 71.3, "ts": "2026-06-10 04:45:52"}
+{"benchmark": "math500", "id": "test/algebra/305.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "5", "gold": "5", "elapsed": 108.4, "ts": "2026-06-10 04:47:41"}
+{"benchmark": "math500", "id": "test/algebra/1265.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "3/2", "gold": "\\frac{3}{2}", "elapsed": 62.9, "ts": "2026-06-10 04:48:44"}
+{"benchmark": "math500", "id": "test/prealgebra/1388.json", "model": "deepseek-r1:8b", "status": "correct", "predicted": "83", "gold": "83", "elapsed": 24.9, "ts": "2026-06-10 04:49:10"}
+{"benchmark": "aime25", "id": "aime25_0", "model": "deepseek-r1:8b", "status": "correct", "predicted": "70", "gold": "70", "elapsed": 32.8, "ts": "2026-06-10 04:49:43"}
+{"benchmark": "aime25", "id": "aime25_1", "model": "deepseek-r1:8b", "status": "correct", "predicted": "588.0", "gold": "588", "elapsed": 89.1, "ts": "2026-06-10 04:51:13"}
+{"benchmark": "aime25", "id": "aime25_2", "model": "deepseek-r1:8b", "status": "correct", "predicted": "16", "gold": "16", "elapsed": 47.4, "ts": "2026-06-10 04:52:01"}
+{"benchmark": "aime25", "id": "aime25_3", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "117", "elapsed": 1200.1, "ts": "2026-06-10 05:12:02"}
+{"benchmark": "aime25", "id": "aime25_4", "model": "deepseek-r1:8b", "status": "correct", "predicted": "279", "gold": "279", "elapsed": 117.4, "ts": "2026-06-10 05:14:00"}
+{"benchmark": "aime25", "id": "aime25_5", "model": "deepseek-r1:8b", "status": "correct", "predicted": "(12 - 6*sqrt(3))**2 + (6*sqrt(3) + 12)**2", "gold": "504", "elapsed": 71.2, "ts": "2026-06-10 05:15:12"}
+{"benchmark": "aime25", "id": "aime25_6", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "239", "gold": "821", "elapsed": 201.8, "ts": "2026-06-10 05:18:34"}
+{"benchmark": "aime25", "id": "aime25_7", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "77", "elapsed": 1200.1, "ts": "2026-06-10 05:38:35"}
+{"benchmark": "aime25", "id": "aime25_8", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "-sqrt(41)/6 - 1/2", "gold": "62", "elapsed": 302.6, "ts": "2026-06-10 05:43:38"}
+{"benchmark": "aime25", "id": "aime25_9", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "81", "elapsed": 1200.1, "ts": "2026-06-10 06:03:39"}
+{"benchmark": "aime25", "id": "aime25_10", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "259", "elapsed": 1200.1, "ts": "2026-06-10 06:23:40"}
+{"benchmark": "aime25", "id": "aime25_11", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "510", "elapsed": 1200.1, "ts": "2026-06-10 06:43:40"}
+{"benchmark": "aime25", "id": "aime25_12", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "204", "elapsed": 1200.1, "ts": "2026-06-10 07:03:41"}
+{"benchmark": "aime25", "id": "aime25_13", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "60", "elapsed": 1200.1, "ts": "2026-06-10 07:23:42"}
+{"benchmark": "aime25", "id": "aime25_14", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "735", "elapsed": 1200.1, "ts": "2026-06-10 07:43:43"}
+{"benchmark": "aime25", "id": "aime25_15", "model": "deepseek-r1:8b", "status": "correct", "predicted": "468", "gold": "468", "elapsed": 38.5, "ts": "2026-06-10 07:44:22"}
+{"benchmark": "aime25", "id": "aime25_16", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "49", "elapsed": 1200.1, "ts": "2026-06-10 08:04:23"}
+{"benchmark": "aime25", "id": "aime25_17", "model": "deepseek-r1:8b", "status": "correct", "predicted": "82", "gold": "82", "elapsed": 103.0, "ts": "2026-06-10 08:06:06"}
+{"benchmark": "aime25", "id": "aime25_18", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "7.153846153846154", "gold": "106", "elapsed": 116.6, "ts": "2026-06-10 08:08:04"}
+{"benchmark": "aime25", "id": "aime25_19", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "336", "elapsed": 1200.1, "ts": "2026-06-10 08:28:04"}
+{"benchmark": "aime25", "id": "aime25_20", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "293", "elapsed": 1200.1, "ts": "2026-06-10 08:48:05"}
+{"benchmark": "aime25", "id": "aime25_21", "model": "deepseek-r1:8b", "status": "wrong", "predicted": "60671", "gold": "237", "elapsed": 93.4, "ts": "2026-06-10 08:49:39"}
+{"benchmark": "aime25", "id": "aime25_22", "model": "deepseek-r1:8b", "status": "correct", "predicted": "610", "gold": "610", "elapsed": 97.0, "ts": "2026-06-10 08:51:17"}
+{"benchmark": "aime25", "id": "aime25_23", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "149", "elapsed": 1200.1, "ts": "2026-06-10 09:11:18"}
+{"benchmark": "aime25", "id": "aime25_24", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "907", "elapsed": 1200.1, "ts": "2026-06-10 09:31:18"}
+{"benchmark": "aime25", "id": "aime25_25", "model": "deepseek-r1:8b", "status": "correct", "predicted": "113", "gold": "113", "elapsed": 70.9, "ts": "2026-06-10 09:32:30"}
+{"benchmark": "aime25", "id": "aime25_26", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "19", "elapsed": 1200.1, "ts": "2026-06-10 09:52:31"}
+{"benchmark": "aime25", "id": "aime25_27", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "248", "elapsed": 1200.1, "ts": "2026-06-10 10:12:32"}
+{"benchmark": "aime25", "id": "aime25_28", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "104", "elapsed": 1200.1, "ts": "2026-06-10 10:32:32"}
+{"benchmark": "aime25", "id": "aime25_29", "model": "deepseek-r1:8b", "status": "timeout", "predicted": "", "gold": "240", "elapsed": 1200.1, "ts": "2026-06-10 10:52:33"}
