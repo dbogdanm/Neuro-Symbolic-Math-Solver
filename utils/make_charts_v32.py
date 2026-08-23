@@ -1,8 +1,14 @@
-"""Generate the v3.2.0 progress charts for the README.
+"""Generate the v3.2.0 engineering charts for the README.
 
 All numbers are wall-clock measurements taken on the reference workstation
 (RTX 5070 Ti, Ryzen 5 7600X, 32 GB RAM, Ollama deepseek-r1:8b Q4_K_M) during
 the v3.2.0 optimization session. Re-run after updating the DATA block.
+
+These figures describe *engineering* changes to the pipeline, on a two-problem
+diagnostic suite. They are single runs and are labelled as such: they show that
+a failure mode was removed, not that accuracy improved by a measurable margin.
+The accuracy claims live in the overnight benchmark figures
+(utils/make_overnight_charts.py), which cover 130 problems.
 
 Requires matplotlib (dev-only dependency, not needed by the app):
     pip install matplotlib
@@ -12,157 +18,166 @@ Usage (from the project root):
 """
 
 import os
+import sys
 
-import matplotlib
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-matplotlib.use("Agg")
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa: E402
+from chart_style import MUTED, STATUS, SYSTEM, apply, footnote, headroom  # noqa: E402
 
 OUT_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Charts")
+
+apply()
 
 # --------------------------------------------------------------------------- #
 # DATA (measured)
 # --------------------------------------------------------------------------- #
 
 # Head-to-head on the two-problem "hard suite":
-#   P1 = infinite power tower x^x^x^... = 4  (semantic-trap, KB hit)
+#   P1 = infinite power tower x^x^x^... = 4  (semantic trap, KB hit)
 #   P2 = count n <= 10^6 with S(n) = S(2n)   (requires real computation, KB miss)
-# Each entry: (seconds, outcome, note) with outcome in {"correct", "wrong", "dnf"}.
-# Single-run LLM timings carry high variance (thinking length, retry luck);
-# outcomes are the hard signal, the notes give the run context.
+# Each entry: (seconds, outcome, note) with outcome in {"correct", "wrong", "dnf"}
+# or None for a configuration that was not run.
+SYSTEMS = [
+    ("Raw DeepSeek-R1 8B\n(no pipeline)", "baseline"),
+    ("v3.1.0 pipeline\n(previous code)", "previous"),
+    ("v3.2.0 pipeline\n(this release)", "ours"),
+]
+
 HEAD_TO_HEAD = {
-    "Raw DeepSeek-R1 8B\n(no pipeline)": {
-        "P1": (580.0, "dnf", "still thinking\nwhen killed"),
-        "P2": (None, None, None),  # not run: cannot brute-force 10^6 mentally
+    "P1": {
+        "Raw DeepSeek-R1 8B\n(no pipeline)": (580.0, "dnf", "still thinking\nwhen killed"),
+        "v3.1.0 pipeline\n(previous code)": None,   # run interrupted, no result recorded
+        "v3.2.0 pipeline\n(this release)": (55.2, "correct", "direct RAG hit,\n1 PoT attempt"),
     },
-    "v3.1.0 pipeline\n(previous code)": {
-        "P1": (None, None, None),  # run interrupted, no result recorded
-        "P2": (48.3, "correct", "1 PoT attempt"),
-    },
-    "v3.2.0 pipeline\n(this release)": {
-        "P1": (55.2, "correct", "direct RAG hit,\n1 PoT attempt"),
-        "P2": (133.4, "correct", "incl. 1 self-\ncorrection round"),
+    "P2": {
+        # Not run: a raw model cannot brute-force 10^6 candidates in its head,
+        # so there is no baseline number to report rather than a missing one.
+        "Raw DeepSeek-R1 8B\n(no pipeline)": None,
+        "v3.1.0 pipeline\n(previous code)": (48.3, "correct", "1 PoT attempt"),
+        "v3.2.0 pipeline\n(this release)": (133.4, "correct", "incl. 1 self-\ncorrection round"),
     },
 }
 
-# Sandbox executor: per-execution overhead (smoke-test measurements).
+PROBLEMS = [
+    # Rendered as a tower-of-exponents *notation* rather than a literal nested
+    # superscript: at three levels of nesting matplotlib's mathtext shrinks the
+    # innermost term below legible size in a figure this wide.
+    ("P1", "P1 - power tower trap\n$x^{x^{x^{\\ldots}}} = 4$  (no real solution)"),
+    ("P2", "P2 - digit-sum count\n$S(n) = S(2n),\\ n \\leq 10^6$  (answer 65,063)"),
+]
+
+# Sandbox executor: per-execution overhead (smoke-test measurements, mean of 20
+# executions after warm-up). The v3.1.0 figure is dominated by re-importing
+# SymPy in a fresh interpreter; the v3.2.0 figure is queue round-trip only.
 SANDBOX = {
-    "v3.1.0: spawn a fresh\nprocess per execution": 0.36,
-    "v3.2.0: persistent\nwarm worker": 0.001,
+    "v3.1.0: fresh process\nper execution": 0.36,
+    "v3.2.0: persistent\nwarm worker": 0.0011,
 }
-
-# Retrieval stage: LLM round-trips required before the vector query.
-#   v3.1.0 always runs an LLM problem-type classification first (observed
-#   stalling >600 s on a hard problem when the reasoning model rabbit-holed);
-#   v3.2.0 embeds the raw problem text directly (Eq. 1) — measured 0.12 s on
-#   a KB hit — and only falls back to a 2048-token-capped classifier on miss.
-RETRIEVAL_CALLS = {
-    "v3.1.0: classify with LLM,\nthen query vector DB": 1,
-    "v3.2.0: embed problem text\ndirectly (Eq. 1)": 0,
-}
+# Self-correction attempts per problem, worst case (see max_retries in
+# neuro_symbolic.run_neuro_symbolic_pipeline). The sandbox overhead is paid once
+# per attempt, which is what makes it worth removing at all.
+MAX_ATTEMPTS = 3
 
 OUTCOME_STYLE = {
-    "correct": ("#2e7d32", "correct"),
-    "wrong": ("#c62828", "wrong answer"),
-    "dnf": ("#8d6e63", "no answer (DNF)"),
+    "correct": (STATUS["correct"], "correct"),
+    "wrong": (STATUS["wrong"], "wrong answer"),
+    "dnf": (STATUS["error"], "no answer (DNF)"),
 }
-
-plt.rcParams.update({
-    "font.family": "DejaVu Sans",
-    "font.size": 11,
-    "axes.spines.top": False,
-    "axes.spines.right": False,
-    "figure.dpi": 150,
-})
 
 
 def chart_head_to_head():
-    systems = list(HEAD_TO_HEAD.keys())
-    problems = [
-        ("P1", "P1 — power tower trap\n$x^{x^{x^{\\cdots}}} = 4$"),
-        ("P2", "P2 — digit-sum count\n$S(n) = S(2n),\\ n \\leq 10^6$"),
-    ]
-    colors = ["#9e9e9e", "#5c6bc0", "#00897b"]
+    """One panel per problem, with every system on the x axis of both.
 
-    fig, axes = plt.subplots(1, 2, figsize=(11.5, 5.0), sharey=True)
-    for ax, (key, title) in zip(axes, problems, strict=True):
-        xs, heights, bar_colors, outcomes, notes = [], [], [], [], []
-        for i, sys_name in enumerate(systems):
-            secs, outcome, note = HEAD_TO_HEAD[sys_name][key]
-            if secs is None:
+    Keeping all three categories on both panels — with an explicit "not run"
+    marker where a cell is empty — means a given x position denotes the same
+    system in both panels. Dropping the empty cells instead would silently
+    shift the categories and invite a left-to-right misreading.
+    """
+    names = [n for n, _ in SYSTEMS]
+    colours = [SYSTEM[role] for _, role in SYSTEMS]
+
+    fig, axes = plt.subplots(1, 2, figsize=(12.5, 5.6))
+    for ax, (key, title) in zip(axes, PROBLEMS, strict=True):
+        cells = HEAD_TO_HEAD[key]
+        heights = [cells[n][0] if cells[n] else 0.0 for n in names]
+        bars = ax.bar(range(len(names)), heights, width=0.55, color=colours)
+        headroom(ax, max(heights), factor=1.42)
+
+        for i, (bar, name) in enumerate(zip(bars, names, strict=True)):
+            cell = cells[name]
+            if cell is None:
+                ax.annotate("not run", (i, 0), xytext=(0, 8),
+                            textcoords="offset points", ha="center",
+                            fontsize=9.5, style="italic", color=MUTED)
                 continue
-            xs.append(i)
-            heights.append(secs)
-            bar_colors.append(colors[i])
-            outcomes.append(outcome)
-            notes.append(note or "")
-        bars = ax.bar([systems[i] for i in xs], heights, color=bar_colors, width=0.55)
-        for bar, outcome, note in zip(bars, outcomes, notes, strict=True):
-            color, text = OUTCOME_STYLE[outcome]
+            secs, outcome, note = cell
+            colour, text = OUTCOME_STYLE[outcome]
             suffix = "+" if outcome == "dnf" else ""
             ax.annotate(
-                f"{bar.get_height():.0f}s{suffix} — {text}\n{note}",
+                f"{secs:.0f}s{suffix} - {text}\n{note}",
                 (bar.get_x() + bar.get_width() / 2, bar.get_height()),
-                ha="center", va="bottom", fontsize=8.5, fontweight="bold", color=color,
+                ha="center", va="bottom", fontsize=8.5, fontweight="bold", color=colour,
             )
+        ax.set_xticks(range(len(names)))
+        ax.set_xticklabels(names, fontsize=9)
         ax.set_title(title, fontsize=11)
         ax.set_ylabel("wall-clock time (s)")
-        ax.margins(y=0.32)
-        ax.tick_params(axis="x", labelsize=9)
+
     fig.suptitle(
-        "Hard-problem suite: total time to answer (single runs — outcomes are the hard signal,\n"
-        "wall-clock varies with reasoning length and self-correction rounds)",
-        fontsize=11.5, fontweight="bold",
+        "Diagnostic suite: does the pipeline reach an answer at all?\n"
+        "Single runs - the outcome is the signal; the times are context, not a benchmark",
+        fontsize=12, fontweight="bold",
     )
-    fig.tight_layout(rect=(0, 0, 1, 0.93))
-    fig.savefig(os.path.join(OUT_DIR, "Chart_v32_head_to_head.png"), bbox_inches="tight")
+    fig.tight_layout(rect=(0, 0, 1, 0.90))
+    footnote(fig, "P1 is a trap with no real solution; P2 needs a value no language model "
+                  "can recall (65,063). On P2 v3.2.0 is slower than v3.1.0 because it spent "
+                  "a self-correction round - both reach the exact count.")
+    fig.savefig(os.path.join(OUT_DIR, "Chart_v32_head_to_head.png"))
     plt.close(fig)
 
 
 def chart_sandbox():
-    fig, ax = plt.subplots(figsize=(8, 3.2))
-    names = list(SANDBOX.keys())
+    """Per-execution overhead, on a linear axis, in context.
+
+    Deliberately not a log-scale bar chart: on a log axis a bar's length is set
+    by the lower limit of the axis rather than by the value, so the ratio being
+    claimed is not the ratio the reader sees.
+    """
+    names = list(SANDBOX)
     vals = [SANDBOX[n] for n in names]
-    bars = ax.barh(names, vals, color=["#5c6bc0", "#00897b"], height=0.5)
-    ax.set_xscale("log")
-    ax.set_xlabel("overhead per PoT execution (s, log scale)")
-    for bar, v in zip(bars, vals, strict=True):
-        ax.annotate(f" {v*1000:.0f} ms" if v < 0.01 else f" {v:.2f} s",
-                    (v, bar.get_y() + bar.get_height() / 2),
-                    va="center", fontsize=10, fontweight="bold")
+    worst = [v * MAX_ATTEMPTS for v in vals]
     speedup = vals[0] / vals[1]
-    ax.set_title(
-        f"SymPy sandbox: persistent warm worker — ~{speedup:,.0f}× less overhead per execution\n"
-        "(paid on every attempt of the self-correction loop)",
-        fontsize=11, fontweight="bold",
-    )
-    fig.tight_layout()
-    fig.savefig(os.path.join(OUT_DIR, "Chart_v32_sandbox.png"), bbox_inches="tight")
-    plt.close(fig)
 
-
-def chart_retrieval():
-    fig, ax = plt.subplots(figsize=(8.5, 3.4))
-    names = list(RETRIEVAL_CALLS.keys())
-    vals = [RETRIEVAL_CALLS[n] for n in names]
-    bars = ax.barh(names, vals, color=["#5c6bc0", "#00897b"], height=0.5)
-    ax.set_xlabel("LLM round-trips required before the vector query (KB-hit problem)")
-    ax.set_xticks([0, 1])
-    ax.set_xlim(0, 1.35)
-    ax.annotate("  measured: 0.12 s retrieval, zero LLM calls",
-                (0.02, bars[1].get_y() + bars[1].get_height() / 2),
-                va="center", fontsize=10, fontweight="bold", color="#00695c")
-    ax.annotate("  observed stalling >600 s when the reasoning\n"
-                "  model rabbit-holed on the classification",
-                (1.02, bars[0].get_y() + bars[0].get_height() / 2),
-                va="center", fontsize=9, color="#3949ab")
+    fig, ax = plt.subplots(figsize=(9.0, 3.8))
+    ypos = range(len(names))
+    ax.barh([p + 0.19 for p in ypos], vals, height=0.34,
+            color=[SYSTEM["previous"], SYSTEM["ours"]], label="one execution")
+    ax.barh([p - 0.19 for p in ypos], worst, height=0.34, alpha=0.42,
+            color=[SYSTEM["previous"], SYSTEM["ours"]],
+            label=f"worst case ({MAX_ATTEMPTS} self-correction attempts)")
+    for p, v, w in zip(ypos, vals, worst, strict=True):
+        ax.annotate(f"  {v * 1000:.0f} ms" if v < 0.01 else f"  {v:.2f} s",
+                    (v, p + 0.19), va="center", fontsize=10, fontweight="bold")
+        ax.annotate(f"  {w * 1000:.0f} ms" if w < 0.01 else f"  {w:.2f} s",
+                    (w, p - 0.19), va="center", fontsize=9.5, color=MUTED)
+    ax.set_yticks(list(ypos))
+    ax.set_yticklabels(names, fontsize=10)
+    ax.set_xlim(0, max(worst) * 1.22)
+    ax.set_xlabel("overhead per PoT execution (s)")
+    ax.legend(loc="upper right")
+    # Rounded to one significant figure on purpose: the warm-worker measurement
+    # is ~1 ms, so quoting "327x" would claim three digits of precision that the
+    # input does not carry.
+    rounded = round(speedup, -2)
     ax.set_title(
-        "Semantic RAG: querying ChromaDB directly with the problem embedding (Eq. 1)\n"
-        "removes the LLM classification round-trip from the retrieval hot path",
-        fontsize=11, fontweight="bold",
+        f"SymPy sandbox: a warm worker removes ~{rounded:.0f}x of the execution overhead",
+        fontweight="bold",
     )
-    fig.tight_layout()
-    fig.savefig(os.path.join(OUT_DIR, "Chart_v32_rag_retrieval.png"), bbox_inches="tight")
+    footnote(fig, "Latency only, and a small share of it: a problem takes 39-93 s at the "
+                  "median, so this removes well under 1% of end-to-end time. It matters "
+                  "because it made the executor's cost independent of retry count.")
+    fig.savefig(os.path.join(OUT_DIR, "Chart_v32_sandbox.png"))
     plt.close(fig)
 
 
@@ -170,5 +185,4 @@ if __name__ == "__main__":
     os.makedirs(OUT_DIR, exist_ok=True)
     chart_head_to_head()
     chart_sandbox()
-    chart_retrieval()
     print(f"Charts written to {OUT_DIR}")
