@@ -57,3 +57,26 @@ def test_execute_code_propagates_errors():
 def test_execute_code_enforces_timeout():
     with pytest.raises(TimeoutError):
         ns.execute_code_with_timeout("while True:\n    pass", timeout=3)
+
+
+def test_extract_boxed_handles_nested_braces():
+    """A non-greedy regex would return "\frac{1" for the first case."""
+    assert ns.extract_boxed(r"So the answer is \boxed{\frac{1}{2}}.") == r"\frac{1}{2}"
+    assert ns.extract_boxed(r"\boxed{\frac{\sqrt{3}}{3}}") == r"\frac{\sqrt{3}}{3}"
+    assert ns.extract_boxed(r"\boxed{42}") == "42"
+
+
+def test_extract_boxed_ignores_the_reasoning_block():
+    """A value the model boxed while thinking is not its final answer."""
+    text = r"<think>maybe \boxed{7}</think> Final answer: \boxed{9}"
+    assert ns.extract_boxed(text) == "9"
+
+
+def test_extract_boxed_prefers_the_last_candidate():
+    assert ns.extract_boxed(r"first \boxed{1} then actually \boxed{2}") == "2"
+
+
+def test_extract_boxed_returns_empty_when_absent():
+    assert ns.extract_boxed("no box here") == ""
+    assert ns.extract_boxed("") == ""
+    assert ns.extract_boxed(r"unbalanced \boxed{1") == ""

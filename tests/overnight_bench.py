@@ -7,7 +7,7 @@ after every problem, so the run is fully resumable: already-recorded
 (benchmark, id) pairs are skipped on restart. Charts in Charts/ are regenerated
 after every problem, so partial results are always visible.
 
-Usage: python tests/overnight_bench.py [model]
+Usage: python tests/overnight_bench.py [model] [benchmark ...]
 """
 
 import json
@@ -16,10 +16,12 @@ import re
 import subprocess
 import sys
 import time
-from fractions import Fraction
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _ROOT)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from grading import grade  # noqa: E402 - needs the sys.path setup above
 
 DATA_DIR = os.path.join(_ROOT, "tests", "datasets")
 RESULTS_DIR = os.path.join(_ROOT, "tests", "results")
@@ -27,88 +29,18 @@ LOGS_DIR = os.path.join(RESULTS_DIR, "logs")
 RESULTS_PATH = os.path.join(RESULTS_DIR, "overnight_results.jsonl")
 
 # (name, dataset file, per-problem wall-clock budget in seconds)
-BENCHMARKS = [
-    ("gsm8k", "gsm8k_50.jsonl", 600),
-    ("math500", "math500_50.jsonl", 900),
-    ("aime25", "aime25_30.jsonl", 1200),
-]
-
-
-# --------------------------------------------------------------------------- #
-# Grading
-# --------------------------------------------------------------------------- #
-
-def normalize_answer(s: str) -> str:
-    """Best-effort normalization of LaTeX/SymPy answer strings for comparison."""
-    s = str(s).strip()
-    s = s.replace("$", "").replace("\\!", "").replace("\\,", " ").replace("\\;", " ")
-    s = re.sub(r"\\text\s*\{([^}]*)\}", r"\1", s)
-    s = re.sub(r"\\mbox\s*\{([^}]*)\}", r"\1", s)
-    s = s.replace("\\left", "").replace("\\right", "")
-    s = re.sub(r"\\[dt]?frac\{([^{}]+)\}\{([^{}]+)\}", r"(\1)/(\2)", s)
-    s = re.sub(r"\\sqrt\s*\{([^{}]+)\}", r"sqrt(\1)", s)
-    s = re.sub(r"\\sqrt\s*(\d+)", r"sqrt(\1)", s)
-    s = s.replace("\\pi", "pi").replace("\\cdot", "*").replace("\\times", "*")
-    s = s.replace("^\\circ", "").replace("\\circ", "").replace("°", "")
-    s = s.replace("\\%", "").replace("%", "")
-    s = re.sub(r"(?<=\d),(?=\d{3}\b)", "", s)  # thousands separators
-    s = s.replace("{", "(").replace("}", ")")
-    s = s.replace(" ", "").rstrip(".").lower()
-    return s
-
-
-def to_number(s: str):
-    if not s or len(s) > 200:
-        return None
-    try:
-        return float(Fraction(s))
-    except Exception:  # noqa: BLE001
-        pass
-    try:
-        import sympy as sp
-        # implicit multiplication: "2pi" -> "2*pi", "3sqrt(2)" -> "3*sqrt(2)"
-        s = re.sub(r"(?<=[\d)])(?=[a-z(])", "*", s)
-        return float(sp.sympify(s).evalf())
-    except Exception:  # noqa: BLE001
-        return None
-
-
-def _split_tuple(s: str):
-    """Split "(a,b,...)" at depth-0 commas; None if not tuple-shaped."""
-    if not (s.startswith("(") and s.endswith(")") and "," in s):
-        return None
-    parts, depth, cur = [], 0, ""
-    for ch in s[1:-1]:
-        if ch in "([":
-            depth += 1
-        elif ch in ")]":
-            depth -= 1
-        if ch == "," and depth == 0:
-            parts.append(cur)
-            cur = ""
-        else:
-            cur += ch
-    parts.append(cur)
-    return parts if len(parts) > 1 else None
-
-
-def _equal_scalar(p: str, g: str) -> bool:
-    if p and p == g:
-        return True
-    pn, gn = to_number(p), to_number(g)
-    if pn is not None and gn is not None:
-        return abs(pn - gn) <= 1e-4 * max(1.0, abs(gn))
-    return False
-
-
-def grade(predicted: str, gold: str) -> bool:
-    p, g = normalize_answer(predicted), normalize_answer(gold)
-    if p and p == g:
-        return True
-    pt, gt = _split_tuple(p), _split_tuple(g)
-    if pt and gt and len(pt) == len(gt):
-        return all(_equal_scalar(a, b) for a, b in zip(pt, gt, strict=True))
-    return _equal_scalar(p, g)
+#
+# The default set is what the paper reports. SVAMP is available under the same
+# harness and the same grader — pass it explicitly rather than adding a fourth
+# 300-problem benchmark to every run:
+#     python tests/overnight_bench.py deepseek-r1:8b svamp
+ALL_BENCHMARKS = {
+    "gsm8k": ("gsm8k_50.jsonl", 600),
+    "math500": ("math500_50.jsonl", 900),
+    "aime25": ("aime25_30.jsonl", 1200),
+    "svamp": ("svamp_300.jsonl", 600),
+}
+DEFAULT_BENCHMARKS = ["gsm8k", "math500", "aime25"]
 
 
 # --------------------------------------------------------------------------- #
@@ -191,13 +123,20 @@ def regenerate_charts(model: str) -> None:
 
 def main():
     model = sys.argv[1] if len(sys.argv) > 1 else "deepseek-r1:8b"
+    selected = sys.argv[2:] or DEFAULT_BENCHMARKS
+    unknown = [b for b in selected if b not in ALL_BENCHMARKS]
+    if unknown:
+        print(f"[bench] unknown benchmark(s): {', '.join(unknown)}; "
+              f"known: {', '.join(ALL_BENCHMARKS)}")
+        return
     os.makedirs(RESULTS_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
 
     done = load_done(model)
     print(f"[bench] starting; {len(done)} results already recorded for {model}", flush=True)
 
-    for bench, fname, budget in BENCHMARKS:
+    for bench in selected:
+        fname, budget = ALL_BENCHMARKS[bench]
         path = os.path.join(DATA_DIR, fname)
         with open(path, encoding="utf-8") as f:
             items = [json.loads(line) for line in f if line.strip()]
