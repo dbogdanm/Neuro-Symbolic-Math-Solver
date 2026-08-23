@@ -142,7 +142,7 @@ def extract_problem_type(problem: str, llm: LLMConfig,
 def get_rag_hint(problem: str, llm: LLMConfig,
                  ui_callback: Optional[Callable[[str], None]] = None) -> str:
     try:
-        from rules_base import find_hints
+        from rules_base import DIRECT_MAX_DISTANCE, find_hints
     except Exception as exc:  # noqa: BLE001 - RAG is an optional dependency
         _log(f"LOG: [RAG] Disabled ({exc}).", ui_callback)
         return ""
@@ -151,8 +151,9 @@ def get_rag_hint(problem: str, llm: LLMConfig,
     #    paper: H = argmax cos(E(P), E(r_i))). No LLM round-trip needed.
     #    Tighter threshold than the type-description fallback: word problems
     #    are mutually similar as raw text, and a prescriptive hint from the
-    #    wrong rule actively poisons the PoT (observed on GSM8K at d≈1.0-1.2).
-    hint = find_hints(problem, max_distance=0.9)
+    #    wrong rule actively poisons the PoT (observed on GSM8K at d≈0.5-0.6
+    #    cosine). See rules_base for how the two thresholds are set.
+    hint = find_hints(problem, max_distance=DIRECT_MAX_DISTANCE)
     if hint:
         _log("LOG: [RAG] Internal hint found (direct embedding match).", ui_callback)
         _log(f"PROMPT: {hint}", ui_callback)
@@ -201,11 +202,15 @@ def step1_semantic_parser(problem: str, llm: LLMConfig,
     return "No structure detected."
 
 
-def step2_pot_generator(problem: str, parsed_structure: str, llm: LLMConfig, hint: str = "",
-                        ui_callback: Optional[Callable[[str], None]] = None) -> str:
-    cache_key = hashlib.md5(
+def _pot_cache_key(problem: str, parsed_structure: str, llm: LLMConfig, hint: str) -> str:
+    return hashlib.md5(
         f"{llm.label}||{problem}||{parsed_structure}||{hint}".encode()
     ).hexdigest()
+
+
+def step2_pot_generator(problem: str, parsed_structure: str, llm: LLMConfig, hint: str = "",
+                        ui_callback: Optional[Callable[[str], None]] = None) -> str:
+    cache_key = _pot_cache_key(problem, parsed_structure, llm, hint)
     if cache_key in _pot_cache:
         _log("  [NS] Stage 2: Cache hit.", ui_callback)
         return _pot_cache[cache_key]
@@ -226,6 +231,36 @@ def step2_pot_generator(problem: str, parsed_structure: str, llm: LLMConfig, hin
     if len(_pot_cache) >= _POT_CACHE_MAX:
         _pot_cache.pop(next(iter(_pot_cache)))  # evict oldest (FIFO)
     _pot_cache[cache_key] = result
+    return result
+
+
+def extract_boxed(text: str) -> str:
+    """Return the content of the last ``\\boxed{...}``, or "" if there is none.
+
+    Brace-aware on purpose: a non-greedy ``\\{(.*?)\\}`` stops at the first
+    closing brace, so ``\\boxed{\\frac{1}{2}}`` would yield ``\\frac{1`` — a
+    silently truncated (and wrong) answer on exactly the LaTeX-heavy problems
+    this fallback path handles. The reasoning block is stripped first, so a
+    value the model boxed inside <think> and then abandoned is never returned;
+    of the remaining candidates the last one is the model's final answer.
+    """
+    if not text:
+        return ""
+    visible = re.sub(r'<think>.*?(?:</think>|$)', '', text, flags=re.DOTALL)
+    result = ""
+    for match in re.finditer(r'\\boxed\s*\{', visible):
+        start = match.end()
+        depth = 1
+        for i in range(start, len(visible)):
+            if visible[i] == '{':
+                depth += 1
+            elif visible[i] == '}':
+                depth -= 1
+                if depth == 0:
+                    result = visible[start:i].strip()
+                    break
+        else:
+            continue  # unbalanced: ignore this candidate
     return result
 
 
@@ -371,13 +406,20 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
             else:
                 _log(f"  [NS] Stage 2: Self-Correction Attempt "
                      f"{attempt}/{max_retries}...", ui_callback)
+                # P ⊕ H again: the corrector gets the same context the generator
+                # had (problem + parsed structure + retrieved hints), not just
+                # the traceback. Re-deriving the fix from the error alone is how
+                # a self-correction round silently drops a constraint.
+                correction_hint = f"\nHINTS/SEARCH RESULTS:\n{hint}\n" if hint else ""
                 error_prompt = (
                     "Your previous Python SymPy code failed with the following error:\n"
                     f"{last_error}\n\n"
                     "Please analyze the error and provide a CORRECTED Python SymPy code block.\n"
                     "Remember, the code MUST contain exactly: final_result = <value>\n"
-                    "Do NOT repeat the same mistake. Output ONLY the fixed python code block.\n\n"
-                    f"Original problem:\n{problem}"
+                    "Do NOT repeat the same mistake. Output ONLY the fixed python code block.\n"
+                    f"{correction_hint}\n"
+                    f"Original problem:\n{problem}\n\n"
+                    f"Extracted structure:\n{parsed_structure}"
                 )
                 raw_pot = call_llm(error_prompt + "\n\nOriginal Code:\n" + raw_pot,
                                    llm=llm, num_ctx=8192, ui_callback=ui_callback)
@@ -393,14 +435,18 @@ def run_neuro_symbolic_pipeline(problem: str, llm: LLMConfig, hint: str = "",
 
         except Exception as e:
             last_error = str(e)
+            # Drop the cached generation: re-serving code that is already known
+            # to fail would make a re-run of the same problem fail identically
+            # without ever calling the model again.
+            _pot_cache.pop(_pot_cache_key(problem, parsed_structure, llm, hint), None)
             _log(f"  [NS] Execution failed (Attempt {attempt}): {last_error}", ui_callback)
 
     # Fallback: direct natural-language reasoning if every PoT attempt failed.
     _log("  [NS] All PoT attempts failed. Retrying with direct reasoning...", ui_callback)
     prompt = f"Solve this math problem. Show final answer in \\boxed{{}}:\n{problem}\nHint: {hint}"
     final_attempt = call_llm(prompt, llm=llm, num_ctx=8192, ui_callback=ui_callback)
-    match = re.search(r'\\boxed\{(.*?)\}', final_attempt)
-    return match.group(1) if match else "Extraction Failed"
+    answer = extract_boxed(final_attempt)
+    return answer if answer else "Extraction Failed"
 
 
 if __name__ == "__main__":

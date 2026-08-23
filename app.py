@@ -177,32 +177,36 @@ def neuro_symbolic_endpoint():
     cfg = LLMConfig.from_request(data)
 
     def gen():
+        # (kind, payload) tuples rather than a tagged string: pipeline logs are
+        # free-form text and can legitimately start with any prefix, so an
+        # in-band marker would let a log line impersonate the final answer.
         q: "queue.Queue" = queue.Queue()
 
         def ui_callback(msg):
-            q.put(msg)
+            q.put(("step", msg))
 
         def run_pipeline():
             try:
                 result = run_neuro_symbolic_pipeline(prompt, llm=cfg, ui_callback=ui_callback)
-                q.put(f"FINAL_RESULT:{result}")
+                q.put(("final", result))
             except Exception as e:  # noqa: BLE001
-                q.put(f"ERROR:{str(e)}")
+                q.put(("error", str(e)))
             finally:
                 q.put(None)
 
         threading.Thread(target=run_pipeline, daemon=True).start()
 
         while True:
-            msg = q.get()
-            if msg is None:
+            item = q.get()
+            if item is None:
                 break
-            if msg.startswith("FINAL_RESULT:"):
-                yield _sse({"final_answer": msg[len("FINAL_RESULT:"):], "done": True})
-            elif msg.startswith("ERROR:"):
-                yield _sse({"error": msg[len("ERROR:"):], "done": True})
+            kind, payload = item
+            if kind == "final":
+                yield _sse({"final_answer": payload, "done": True})
+            elif kind == "error":
+                yield _sse({"error": payload, "done": True})
             else:
-                yield _sse({"step": msg})
+                yield _sse({"step": payload})
 
     return Response(stream_with_context(gen()), content_type="text/event-stream")
 

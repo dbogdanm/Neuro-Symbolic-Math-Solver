@@ -5,16 +5,35 @@ of truth in ``math_rules.py``), so importing this module performs no I/O. If the
 persistent store under ``chroma_db_reguli/`` is missing or empty it is rebuilt
 automatically on first use.
 
-The active collection is ``reguli_matematice_en``: ``math_rules.py`` is written
-in English to match the language of the evaluation benchmarks (GSM8K, MATH500,
-AIME, SVAMP). The legacy Romanian ``reguli_matematice`` collection is left
-untouched on disk for reproducibility of earlier runs.
+The active collection is ``reguli_matematice_en_cosine``: ``math_rules.py`` is
+written in English to match the language of the evaluation benchmarks (GSM8K,
+MATH500, AIME, SVAMP), and the index is built in **cosine** space so that the
+distances printed here are the same quantity Eq. 1 of the paper is written in.
+ChromaDB's default is squared L2; on the normalized MiniLM embeddings used here
+the two are related by ``L2^2 = 2 - 2*cos``, i.e. ``d_cos = d_L2^2 / 2``, so the
+*ranking* is identical but the numbers differ by a factor of two. Earlier
+collections (``reguli_matematice``, Romanian; ``reguli_matematice_en``, English
+in L2 space) are left untouched on disk so past runs stay reproducible.
 """
 
 import chromadb
 
 _DB_PATH = "./chroma_db_reguli"
-_COLLECTION_NAME = "reguli_matematice_en"
+_COLLECTION_NAME = "reguli_matematice_en_cosine"
+
+# Cosine-distance thresholds (range [0, 2]; 0 = identical direction).
+#
+# DEFAULT_MAX_DISTANCE gates the fallback path, which queries with an LLM-written
+# problem-type description — short, on-topic text that lands close to the rules.
+# DIRECT_MAX_DISTANCE gates the direct-embedding path of Eq. 1, which queries
+# with the raw problem statement. That is a much looser match (word problems are
+# mutually similar as prose regardless of the mathematics), so it needs the
+# tighter gate: a prescriptive hint pulled from the wrong rule actively poisons
+# the generated program. Both were previously expressed as squared-L2 distances
+# (1.2 and 0.9); the values here are those thresholds converted to cosine and
+# select exactly the same matches.
+DEFAULT_MAX_DISTANCE = 0.6
+DIRECT_MAX_DISTANCE = 0.45
 
 _collection = None
 
@@ -26,12 +45,14 @@ def _get_collection():
         return _collection
 
     client = chromadb.PersistentClient(path=_DB_PATH)
-    collection = client.get_or_create_collection(name=_COLLECTION_NAME)
+    collection = client.get_or_create_collection(
+        name=_COLLECTION_NAME, metadata={"hnsw:space": "cosine"}
+    )
 
     if collection.count() == 0:
         from math_rules import MATH_RULES
 
-        print("[ChromaDB] Empty store — generating rule embeddings...")
+        print("[ChromaDB] Empty store - generating rule embeddings...")
         collection.add(
             documents=[rule["description"] for rule in MATH_RULES],
             metadatas=[{"hint": rule["hint"], "rule_id": rule["id"]} for rule in MATH_RULES],
@@ -51,12 +72,13 @@ def _safe_print(msg: str) -> None:
         print(msg.encode("ascii", "backslashreplace").decode("ascii"))
 
 
-def find_hints(query: str, n_results: int = 2, max_distance: float = 1.2) -> str:
+def find_hints(query: str, n_results: int = 2,
+               max_distance: float = DEFAULT_MAX_DISTANCE) -> str:
     """Retrieve the top-N most relevant hints by embedding similarity.
 
     Implements Eq. 1 of the paper: ``H = argmax cos(E(P), E(r_i))`` — the query
     can be the raw problem text itself, no LLM classification needed. Hints
-    whose semantic distance exceeds ``max_distance`` are discarded; the kept
+    whose cosine distance exceeds ``max_distance`` are discarded; the kept
     matches are joined into a single hint block.
     """
     if not query or not query.strip():
@@ -74,24 +96,15 @@ def find_hints(query: str, n_results: int = 2, max_distance: float = 1.2) -> str
             hint = metadata.get("hint", "")
 
             if distance < max_distance:
-                _safe_print(f"    [Chroma Match] Rule {rule_id} (distance {distance:.2f})")
+                _safe_print(f"    [Chroma Match] Rule {rule_id} (cosine distance {distance:.2f})")
                 hints.append(hint)
             else:
                 _safe_print(
                     f"    [Chroma Miss] Closest rule {rule_id} rejected "
-                    f"(distance {distance:.2f} >= {max_distance})."
+                    f"(cosine distance {distance:.2f} >= {max_distance})."
                 )
 
         return "\n\n".join(hints)
     except Exception as exc:  # noqa: BLE001 - never let RAG break the pipeline
         print(f"[ChromaDB Error] Query failed: {exc}")
         return ""
-
-
-def find_hint(problem_type: str, max_distance: float = 1.2) -> str:
-    """Backwards-compatible single-hint lookup.
-
-    ``max_distance`` is the semantic-distance threshold above which the closest
-    match is rejected as irrelevant.
-    """
-    return find_hints(problem_type, n_results=1, max_distance=max_distance)
